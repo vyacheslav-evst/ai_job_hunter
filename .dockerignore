@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# Секреты
+.env
+
+# Результаты работы (генерируются в рантайме)
+output/
+*.pdf
+*.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Логи
+*.log
+
+# Windows
+Thumbs.db
+Desktop.ini
