@@ -231,7 +231,7 @@ with st.sidebar:
     # Навигация
     page = st.radio(
         "Раздел",
-        ["🔍 Поиск", "📊 Анализ", "📝 Резюме и письма", "📄 Отчёт", "📈 Оценка агента"],
+        ["🔍 Поиск", "📊 Анализ", "📝 Резюме и письма", "📄 Отчёт", "📈 Оценка агента", "✏️ Моё резюме"],
         label_visibility="collapsed",
     )
 
@@ -832,3 +832,211 @@ elif page == "📈 Оценка агента":
                 f"score: `{entry['relevance_score']}` &nbsp; агент: {rec_label} &nbsp; исход: **{outcome_label}**",
                 unsafe_allow_html=True,
             )
+
+
+# ─── Страница: Редактор резюме ────────────────────────────────────────────────
+
+RESUME_PATH = Path(__file__).parent / "memory" / "base_resume.json"
+RESUME_EXAMPLE_PATH = Path(__file__).parent / "memory" / "base_resume.example.json"
+
+
+def _load_resume() -> dict:
+    """Загружает base_resume.json; если нет — берёт example как заготовку."""
+    path = RESUME_PATH if RESUME_PATH.exists() else RESUME_EXAMPLE_PATH
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_resume(data: dict) -> None:
+    """Сохраняет резюме в memory/base_resume.json."""
+    RESUME_PATH.parent.mkdir(exist_ok=True)
+    with open(RESUME_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _list_to_text(lst: list) -> str:
+    """Список строк → многострочный текст (для text_area)."""
+    return "\n".join(str(x) for x in lst)
+
+
+def _text_to_list(text: str) -> list:
+    """Многострочный текст → список строк (убирает пустые строки)."""
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+if page == "✏️ Моё резюме":
+    st.title("✏️ Редактор резюме")
+    st.caption("Изменения сохраняются в `memory/base_resume.json` и сразу используются агентом.")
+
+    try:
+        resume = _load_resume()
+    except Exception as e:
+        st.error(f"Не удалось загрузить резюме: {e}")
+        st.stop()
+
+    # Флаг — было ли сохранение
+    saved = False
+
+    with st.form("resume_editor", border=False):
+
+        # ── Личные данные ──────────────────────────────────────────────────────
+        st.subheader("👤 Личные данные")
+        personal = resume.get("personal", {})
+        col1, col2 = st.columns(2)
+        with col1:
+            p_name = st.text_input("Имя", value=personal.get("name", ""))
+            p_email = st.text_input("Email (основной)", value=personal.get("email_primary", ""))
+            p_email2 = st.text_input("Email (дополнительный)", value=personal.get("email_secondary", ""))
+        with col2:
+            p_telegram = st.text_input("Telegram", value=personal.get("telegram", ""))
+            p_location = st.text_input("Город / страна", value=personal.get("location", ""))
+            p_formats_raw = personal.get("work_format", [])
+            p_formats = st.multiselect(
+                "Формат работы",
+                options=["remote", "hybrid", "office"],
+                default=[f for f in p_formats_raw if f in ["remote", "hybrid", "office"]],
+            )
+        p_languages = st.text_area(
+            "Языки (каждый с новой строки)",
+            value=_list_to_text(personal.get("languages", [])),
+            height=80,
+        )
+
+        st.divider()
+
+        # ── Цель ──────────────────────────────────────────────────────────────
+        st.subheader("🎯 Цель и позиционирование")
+        summary = st.text_area(
+            "О себе / Summary",
+            value=resume.get("summary", ""),
+            height=120,
+        )
+        target_roles = st.text_area(
+            "Целевые роли (каждая с новой строки)",
+            value=_list_to_text(resume.get("target_roles", [])),
+            height=120,
+        )
+
+        st.divider()
+
+        # ── Навыки ────────────────────────────────────────────────────────────
+        st.subheader("🛠 Навыки")
+        skills = resume.get("skills", {})
+        sk_prompt = st.text_area(
+            "Prompt Engineering (каждый навык с новой строки)",
+            value=_list_to_text(skills.get("prompt_engineering", [])),
+            height=120,
+        )
+        sk_ai = st.text_area(
+            "AI Development (каждый навык с новой строки)",
+            value=_list_to_text(skills.get("ai_development", [])),
+            height=100,
+        )
+        sk_prog = st.text_area(
+            "Программирование (каждый навык с новой строки)",
+            value=_list_to_text(skills.get("programming", [])),
+            height=100,
+        )
+        sk_tools = st.text_area(
+            "Инструменты (каждый с новой строки)",
+            value=_list_to_text(skills.get("tools", [])),
+            height=80,
+        )
+
+        st.divider()
+
+        # ── Проекты ───────────────────────────────────────────────────────────
+        st.subheader("🚀 Проекты")
+        st.caption("Редактируется в формате JSON — по одному проекту.")
+        projects = resume.get("projects", [])
+        projects_json = st.text_area(
+            "Список проектов (JSON)",
+            value=json.dumps(projects, ensure_ascii=False, indent=2),
+            height=300,
+        )
+
+        st.divider()
+
+        # ── Опыт и образование ────────────────────────────────────────────────
+        st.subheader("📚 Опыт и образование")
+        experience_notes = st.text_area(
+            "Заметки об опыте",
+            value=resume.get("experience_notes", ""),
+            height=80,
+        )
+        education = resume.get("education", {})
+        edu_formal = st.text_input("Формальное образование", value=education.get("formal", ""))
+        edu_self = st.text_area(
+            "Самообразование (каждый пункт с новой строки)",
+            value=_list_to_text(education.get("self_education", [])),
+            height=100,
+        )
+
+        st.divider()
+
+        # ── Soft skills и ключевые слова ──────────────────────────────────────
+        st.subheader("💬 Soft Skills и ключевые слова")
+        soft_skills = st.text_area(
+            "Soft skills (каждый с новой строки)",
+            value=_list_to_text(resume.get("soft_skills", [])),
+            height=100,
+        )
+        keywords = st.text_area(
+            "Ключевые слова для матчинга (через запятую)",
+            value=", ".join(resume.get("keywords_for_matching", [])),
+            height=80,
+        )
+
+        st.divider()
+
+        submitted = st.form_submit_button("💾 Сохранить резюме", type="primary", use_container_width=True)
+
+    if submitted:
+        # Валидация JSON проектов
+        try:
+            parsed_projects = json.loads(projects_json)
+        except json.JSONDecodeError as e:
+            st.error(f"Ошибка в JSON проектов: {e}")
+            st.stop()
+
+        # Разбираем ключевые слова
+        kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+
+        # Собираем итоговый словарь
+        updated = {
+            "meta": resume.get("meta", {}),
+            "personal": {
+                "name": p_name,
+                "telegram": p_telegram,
+                "email_primary": p_email,
+                "email_secondary": p_email2,
+                "location": p_location,
+                "work_format": p_formats,
+                "languages": _text_to_list(p_languages),
+            },
+            "target_roles": _text_to_list(target_roles),
+            "summary": summary,
+            "skills": {
+                "prompt_engineering": _text_to_list(sk_prompt),
+                "ai_development": _text_to_list(sk_ai),
+                "programming": _text_to_list(sk_prog),
+                "tools": _text_to_list(sk_tools),
+            },
+            "projects": parsed_projects,
+            "experience_notes": experience_notes,
+            "education": {
+                "formal": edu_formal,
+                "self_education": _text_to_list(edu_self),
+            },
+            "soft_skills": _text_to_list(soft_skills),
+            "keywords_for_matching": kw_list,
+        }
+
+        # Обновляем дату
+        updated["meta"]["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+
+        try:
+            _save_resume(updated)
+            st.success("✅ Резюме сохранено в `memory/base_resume.json`")
+        except Exception as e:
+            st.error(f"Ошибка сохранения: {e}")
