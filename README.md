@@ -14,7 +14,7 @@ short_description: Автономный агент для поиска AI-вак
 
 > Автономный Python-агент для поиска AI-вакансий на hh.ru, анализа через LLM и адаптации резюме под каждую позицию.
 
-**Автор:** Слава ([@ysiSevera](https://t.me/ysiSevera)) — Junior Prompt Engineer  
+**Автор:** Слава · [@ysiSevera](https://t.me/ysiSevera)  
 **Стек:** Python 3.11 · OpenAI API · Streamlit · BeautifulSoup · Pydantic · fpdf2 · Docker
 
 ---
