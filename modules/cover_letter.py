@@ -37,9 +37,7 @@ class CoverLetterGenerator:
     Письмо персонализировано под конкретную вакансию и компанию.
     """
 
-    def __init__(self):
-        self.llm = LLMClient()
-        self.base_resume = self._load_resume()
+    def __init__(self) -> None:
         print(f"[COVER] Инициализирован. Модель: {self.llm.model}")
 
     def _load_resume(self) -> dict:

@@ -20,9 +20,7 @@ class ResumeAdapter:
     перефразируем формулировки под язык вакансии, выдвигаем нужные проекты вперёд.
     """
 
-    def __init__(self):
-        self.llm = LLMClient()
-        self.base_resume = self._load_base_resume()
+    def __init__(self) -> None:
         print(f"[ADAPTER] Инициализирован. Модель: {self.llm.model}")
 
     def _load_base_resume(self) -> dict:

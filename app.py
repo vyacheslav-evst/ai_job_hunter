@@ -25,6 +25,8 @@ from modules.evaluator import (
     load_feedback, save_feedback, record_outcome,
     compute_metrics, OUTCOME_LABELS,
 )
+from modules.interview_prep import InterviewPrep
+from modules.company_analyzer import CompanyAnalyzer
 
 
 # ─── Конфигурация страницы ────────────────────────────────────────────────────
@@ -84,8 +86,10 @@ def init_state():
     defaults = {
         "vacancies": [],
         "analyses": [],
-        "adapted_resumes": {},   # vacancy_id -> dict
-        "cover_letters": {},     # vacancy_id -> str
+        "adapted_resumes": {},      # vacancy_id -> dict
+        "cover_letters": {},        # vacancy_id -> str
+        "interview_questions": {},  # vacancy_id -> dict
+        "company_info": {},         # vacancy_id -> dict
         "selected_idx": 0,
         "search_done": False,
         "analyze_done": False,
@@ -118,6 +122,14 @@ def get_cover_gen():
 @st.cache_resource
 def get_exporter():
     return Exporter()
+
+@st.cache_resource
+def get_interview_prep():
+    return InterviewPrep()
+
+@st.cache_resource
+def get_company_analyzer():
+    return CompanyAnalyzer()
 
 
 # ─── Хелперы ─────────────────────────────────────────────────────────────────
@@ -607,6 +619,47 @@ elif page == "📊 Анализ":
 
                 st.link_button("Открыть на hh.ru", f"https://hh.ru/vacancy/{a.vacancy_id}")
 
+                # ── Анализ компании ────────────────────────────────────────
+                company_key = a.vacancy_id
+                existing_info = st.session_state.company_info.get(company_key)
+
+                if st.button(
+                    "🏢 Анализ компании",
+                    key=f"company_{company_key}",
+                    use_container_width=True,
+                ):
+                    analyzer_co = get_company_analyzer()
+                    with st.spinner(f"Анализирую {a.company}..."):
+                        info = analyzer_co.analyze(a.company, vacancy_title=a.vacancy_title)
+                    if info:
+                        st.session_state.company_info[company_key] = info
+                        existing_info = info
+                        st.success("Готово!")
+                    else:
+                        st.warning("Не удалось получить информацию о компании")
+
+                if existing_info:
+                    with st.container(border=True):
+                        st.markdown(f"**🏢 {existing_info.get('company_name', a.company)}**")
+                        if existing_info.get("summary"):
+                            st.markdown(existing_info["summary"])
+                        col_c1, col_c2 = st.columns(2)
+                        with col_c1:
+                            if existing_info.get("what_they_do"):
+                                st.markdown(f"**Деятельность:** {existing_info['what_they_do']}")
+                            if existing_info.get("tech_hints"):
+                                st.markdown(f"**Технологии:** {existing_info['tech_hints']}")
+                        with col_c2:
+                            if existing_info.get("culture_hints"):
+                                st.markdown(f"**Культура:** {existing_info['culture_hints']}")
+                            if existing_info.get("red_flags"):
+                                st.markdown(f"**⚠️ Red flags:** {existing_info['red_flags']}")
+                        if existing_info.get("employer_url"):
+                            st.link_button(
+                                "Страница работодателя на hh",
+                                existing_info["employer_url"],
+                            )
+
 
 # ─── Страница: Резюме и письма ────────────────────────────────────────────────
 
@@ -628,11 +681,12 @@ elif page == "📝 Резюме и письма":
         st.markdown(f"**Вакансия:** {analysis.vacancy_title} | **Компания:** {analysis.company}")
         st.divider()
 
-        col1, col2 = st.columns(2)
+        tab_resume, tab_cover, tab_interview = st.tabs(
+            ["📋 Адаптация резюме", "✉️ Сопроводительное письмо", "🎤 Подготовка к собеседованию"]
+        )
 
         # ── Адаптация резюме ──
-        with col1:
-            st.subheader("📋 Адаптация резюме")
+        with tab_resume:
             adapt_clicked = st.button("⚡ Адаптировать резюме", type="primary", use_container_width=True)
 
             if adapt_clicked:
@@ -667,8 +721,7 @@ elif page == "📝 Резюме и письма":
                     st.success(f"Markdown: `{md_path}`")
 
         # ── Сопроводительное письмо ──
-        with col2:
-            st.subheader("✉️ Сопроводительное письмо")
+        with tab_cover:
             tone = st.selectbox("Тон письма", ["professional", "friendly", "concise"])
             cover_clicked = st.button("✍️ Сгенерировать письмо", type="primary", use_container_width=True)
 
@@ -690,6 +743,54 @@ elif page == "📝 Резюме и письма":
                     "💾 Скачать письмо (.txt)",
                     letter,
                     file_name=f"cover_{analysis.vacancy_id}.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+
+        # ── Подготовка к собеседованию ──
+        with tab_interview:
+            st.caption("Персональные вопросы под эту вакансию и твоё резюме")
+            interview_clicked = st.button(
+                "🎤 Подготовить вопросы", type="primary", use_container_width=True
+            )
+
+            if interview_clicked:
+                prep = get_interview_prep()
+                with st.spinner("Генерирую вопросы..."):
+                    questions = prep.generate(analysis)
+                if questions:
+                    st.session_state.interview_questions[analysis.vacancy_id] = questions
+                    st.success("Готово!")
+                else:
+                    st.error("Не удалось сгенерировать вопросы. Проверь соединение с LLM.")
+
+            questions = st.session_state.interview_questions.get(analysis.vacancy_id)
+            if questions:
+                st.subheader("❓ Вопросы которые тебе зададут")
+                for i, q in enumerate(questions.get("questions_for_me", []), 1):
+                    with st.expander(f"{i}. {q.get('question', '')}"):
+                        st.markdown(f"**Как отвечать:** {q.get('hint', '')}")
+
+                st.divider()
+                st.subheader("🙋 Вопросы которые ты можешь задать")
+                for q in questions.get("questions_for_them", []):
+                    st.markdown(f"- {q}")
+
+                # Экспорт вопросов как текст
+                export_text = "ВОПРОСЫ К СОБЕСЕДОВАНИЮ\n"
+                export_text += f"Вакансия: {analysis.vacancy_title} — {analysis.company}\n\n"
+                export_text += "ВОПРОСЫ КО МНЕ:\n"
+                for i, q in enumerate(questions.get("questions_for_me", []), 1):
+                    export_text += f"\n{i}. {q.get('question', '')}\n"
+                    export_text += f"   → {q.get('hint', '')}\n"
+                export_text += "\nВОПРОСЫ К КОМПАНИИ:\n"
+                for q in questions.get("questions_for_them", []):
+                    export_text += f"- {q}\n"
+
+                st.download_button(
+                    "💾 Скачать вопросы (.txt)",
+                    export_text,
+                    file_name=f"interview_{analysis.vacancy_id}.txt",
                     mime="text/plain",
                     use_container_width=True,
                 )
@@ -777,6 +878,56 @@ elif page == "📈 Оценка агента":
             f"{metrics['accuracy']}%" if metrics["accuracy"] is not None else "—",
             help="Общая точность решений агента",
         )
+
+        # ── Графики ──────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("Графики")
+
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            # Распределение исходов (bar chart)
+            outcome_counts: dict[str, int] = {}
+            for entry in feedback.values():
+                label = OUTCOME_LABELS.get(entry["outcome"], entry["outcome"])
+                outcome_counts[label] = outcome_counts.get(label, 0) + 1
+            if outcome_counts:
+                st.caption("Распределение исходов")
+                st.bar_chart(outcome_counts)
+
+        with col_right:
+            # Ключевые метрики как прогресс-бары
+            st.caption("Ключевые метрики (%)")
+            for label, key in [
+                ("Precision APPLY", "precision_apply"),
+                ("Invite Rate", "invite_rate"),
+                ("Accuracy", "accuracy"),
+            ]:
+                val = metrics.get(key)
+                if val is not None:
+                    st.markdown(f"**{label}:** {val}%")
+                    st.progress(int(val) / 100)
+                else:
+                    st.markdown(f"**{label}:** — *(нет данных)*")
+
+        # Распределение рекомендаций агента vs реальных исходов
+        if len(feedback) >= 3:
+            st.divider()
+            st.caption("Рекомендации агента vs реальные исходы")
+            rec_outcome: dict[str, dict[str, int]] = {}
+            for entry in feedback.values():
+                rec = entry["agent_recommendation"]
+                out = OUTCOME_LABELS.get(entry["outcome"], entry["outcome"])
+                if rec not in rec_outcome:
+                    rec_outcome[rec] = {}
+                rec_outcome[rec][out] = rec_outcome[rec].get(out, 0) + 1
+            # Строим плоский словарь для bar_chart
+            chart_data: dict[str, int] = {}
+            for rec, outcomes in rec_outcome.items():
+                for out, cnt in outcomes.items():
+                    chart_data[f"{rec} → {out}"] = cnt
+            st.bar_chart(chart_data)
+
         st.divider()
 
     # Форма записи исхода

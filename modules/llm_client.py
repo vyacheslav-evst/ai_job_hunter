@@ -1,7 +1,7 @@
 """
-llm_client.py — универсальный LLM клиент
-Работает через OpenRouter (OpenAI-совместимый API).
-Чтобы переключиться на OpenAI — меняем только base_url и api_key в .env.
+llm_client.py вЂ” СѓРЅРёРІРµСЂСЃР°Р»СЊРЅС‹Р№ LLM РєР»РёРµРЅС‚
+Р Р°Р±РѕС‚Р°РµС‚ С‡РµСЂРµР· OpenRouter (OpenAI-СЃРѕРІРјРµСЃС‚РёРјС‹Р№ API).
+Р§С‚РѕР±С‹ РїРµСЂРµРєР»СЋС‡РёС‚СЊСЃСЏ РЅР° OpenAI вЂ” РјРµРЅСЏРµРј С‚РѕР»СЊРєРѕ base_url Рё api_key РІ .env.
 """
 
 import json
@@ -13,16 +13,16 @@ from typing import Optional
 
 import config
 
-# Применяем прокси (нужно для доступа через Happ VPN)
+# РџСЂРёРјРµРЅСЏРµРј РїСЂРѕРєСЃРё (РЅСѓР¶РЅРѕ РґР»СЏ РґРѕСЃС‚СѓРїР° С‡РµСЂРµР· Happ VPN)
 config.apply_proxy()
 
-# Happ VPN перехватывает SSL — отключаем предупреждения о verify=False
+# Happ VPN РїРµСЂРµС…РІР°С‚С‹РІР°РµС‚ SSL вЂ” РѕС‚РєР»СЋС‡Р°РµРј РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏ Рѕ verify=False
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 
-# Список бесплатных моделей-фоллбэков (в порядке предпочтения).
-# Если основная модель недоступна — пробуем следующую.
+# РЎРїРёСЃРѕРє Р±РµСЃРїР»Р°С‚РЅС‹С… РјРѕРґРµР»РµР№-С„РѕР»Р»Р±СЌРєРѕРІ (РІ РїРѕСЂСЏРґРєРµ РїСЂРµРґРїРѕС‡С‚РµРЅРёСЏ).
+# Р•СЃР»Рё РѕСЃРЅРѕРІРЅР°СЏ РјРѕРґРµР»СЊ РЅРµРґРѕСЃС‚СѓРїРЅР° вЂ” РїСЂРѕР±СѓРµРј СЃР»РµРґСѓСЋС‰СѓСЋ.
 FALLBACK_MODELS = [
     "meta-llama/llama-3.3-70b-instruct:free",
     "openai/gpt-oss-120b:free",
@@ -30,42 +30,42 @@ FALLBACK_MODELS = [
     "google/gemma-4-31b-it:free",
 ]
 
-# Модели которые не поддерживают system role
+# РњРѕРґРµР»Рё РєРѕС‚РѕСЂС‹Рµ РЅРµ РїРѕРґРґРµСЂР¶РёРІР°СЋС‚ system role
 GEMMA_MODELS = {"google/gemma-4-31b-it:free"}
 
-# Задержки для exponential backoff при 429 (секунды)
+# Р—Р°РґРµСЂР¶РєРё РґР»СЏ exponential backoff РїСЂРё 429 (СЃРµРєСѓРЅРґС‹)
 BACKOFF_DELAYS = [10, 20, 40]
 
 
 class LLMClient:
     """
-    Тонкая обёртка над OpenRouter/OpenAI Chat Completions API.
-    Используется всеми модулями вместо google-genai.
-    При 429 (rate limit) делает exponential backoff на текущей модели,
-    затем переключается на следующую из FALLBACK_MODELS.
+    РўРѕРЅРєР°СЏ РѕР±С‘СЂС‚РєР° РЅР°Рґ OpenRouter/OpenAI Chat Completions API.
+    РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РІСЃРµРјРё РјРѕРґСѓР»СЏРјРё РІРјРµСЃС‚Рѕ google-genai.
+    РџСЂРё 429 (rate limit) РґРµР»Р°РµС‚ exponential backoff РЅР° С‚РµРєСѓС‰РµР№ РјРѕРґРµР»Рё,
+    Р·Р°С‚РµРј РїРµСЂРµРєР»СЋС‡Р°РµС‚СЃСЏ РЅР° СЃР»РµРґСѓСЋС‰СѓСЋ РёР· FALLBACK_MODELS.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = config.OPENROUTER_API_KEY
         self.base_url = config.OPENROUTER_BASE_URL
-        # Основная модель из .env, остальные — резервные
+        # РћСЃРЅРѕРІРЅР°СЏ РјРѕРґРµР»СЊ РёР· .env, РѕСЃС‚Р°Р»СЊРЅС‹Рµ вЂ” СЂРµР·РµСЂРІРЅС‹Рµ
         self.model = config.LLM_MODEL
         self._models = [self.model] + [m for m in FALLBACK_MODELS if m != self.model]
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            # OpenRouter рекомендует передавать эти заголовки для статистики
+            # OpenRouter СЂРµРєРѕРјРµРЅРґСѓРµС‚ РїРµСЂРµРґР°РІР°С‚СЊ СЌС‚Рё Р·Р°РіРѕР»РѕРІРєРё РґР»СЏ СЃС‚Р°С‚РёСЃС‚РёРєРё
             "HTTP-Referer": "https://github.com/ai-job-hunter",
             "X-Title": "AI Job Hunter Agent",
         }
-        print(f"[LLM] Инициализирован. Модель: {self.model}")
+        print(f"[LLM] РРЅРёС†РёР°Р»РёР·РёСЂРѕРІР°РЅ. РњРѕРґРµР»СЊ: {self.model}")
 
     def _call_model(self, model: str, payload: dict, system: str) -> Optional[str]:
         """
-        Делает один запрос к модели с exponential backoff при 429.
-        Возвращает текст ответа или None если модель недоступна.
+        Р”РµР»Р°РµС‚ РѕРґРёРЅ Р·Р°РїСЂРѕСЃ Рє РјРѕРґРµР»Рё СЃ exponential backoff РїСЂРё 429.
+        Р’РѕР·РІСЂР°С‰Р°РµС‚ С‚РµРєСЃС‚ РѕС‚РІРµС‚Р° РёР»Рё None РµСЃР»Рё РјРѕРґРµР»СЊ РЅРµРґРѕСЃС‚СѓРїРЅР°.
         """
-        # Для Gemma убираем system role — встраиваем в user-сообщение
+        # Р”Р»СЏ Gemma СѓР±РёСЂР°РµРј system role вЂ” РІСЃС‚СЂР°РёРІР°РµРј РІ user-СЃРѕРѕР±С‰РµРЅРёРµ
         if model in GEMMA_MODELS:
             user_content = payload["messages"][-1]["content"]
             payload = {**payload, "messages": [{"role": "user", "content": f"{system}\n\n{user_content}"}]}
@@ -79,7 +79,7 @@ class LLMClient:
 
         for attempt, delay in enumerate([0] + BACKOFF_DELAYS):
             if delay:
-                print(f"[LLM] 429 на {model}, жду {delay}с (попытка {attempt+1}/{len(BACKOFF_DELAYS)+1})...")
+                print(f"[LLM] 429 РЅР° {model}, Р¶РґСѓ {delay}СЃ (РїРѕРїС‹С‚РєР° {attempt+1}/{len(BACKOFF_DELAYS)+1})...")
                 time.sleep(delay)
             try:
                 response = requests.post(
@@ -87,31 +87,31 @@ class LLMClient:
                     headers=self.headers,
                     json=payload,
                     timeout=60,
-                    verify=False,  # Happ VPN перехватывает SSL, отключаем проверку
+                    verify=False,  # Happ VPN РїРµСЂРµС…РІР°С‚С‹РІР°РµС‚ SSL, РѕС‚РєР»СЋС‡Р°РµРј РїСЂРѕРІРµСЂРєСѓ
                 )
                 if response.status_code == 429:
                     if attempt < len(BACKOFF_DELAYS):
-                        continue  # повторяем с задержкой
-                    print(f"[LLM] {model} исчерпал попытки (429), переключаюсь...")
+                        continue  # РїРѕРІС‚РѕСЂСЏРµРј СЃ Р·Р°РґРµСЂР¶РєРѕР№
+                    print(f"[LLM] {model} РёСЃС‡РµСЂРїР°Р» РїРѕРїС‹С‚РєРё (429), РїРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ...")
                     return None
                 response.raise_for_status()
                 data = response.json()
                 choices = data.get("choices", [])
                 if not choices or not choices[0].get("message", {}).get("content"):
-                    print(f"[LLM] Пустой ответ от {model}")
+                    print(f"[LLM] РџСѓСЃС‚РѕР№ РѕС‚РІРµС‚ РѕС‚ {model}")
                     return None
                 content = choices[0]["message"]["content"].strip()
                 content = self._strip_reasoning(content)
                 return content
 
             except requests.exceptions.Timeout:
-                print(f"[LLM] Таймаут (60с) на {model}")
+                print(f"[LLM] РўР°Р№РјР°СѓС‚ (60СЃ) РЅР° {model}")
                 return None
             except requests.exceptions.HTTPError as e:
-                print(f"[LLM] HTTP {response.status_code} на {model}: {response.text[:120]}")
+                print(f"[LLM] HTTP {response.status_code} РЅР° {model}: {response.text[:120]}")
                 return None
             except Exception as e:
-                print(f"[LLM] Ошибка на {model}: {e}")
+                print(f"[LLM] РћС€РёР±РєР° РЅР° {model}: {e}")
                 return None
 
         return None
@@ -121,20 +121,20 @@ class LLMClient:
         prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 2000,
-        system: str = "Ты — полезный AI-ассистент. Отвечай на русском языке.",
+        system: str = "РўС‹ вЂ” РїРѕР»РµР·РЅС‹Р№ AI-Р°СЃСЃРёСЃС‚РµРЅС‚. РћС‚РІРµС‡Р°Р№ РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ.",
     ) -> Optional[str]:
         """
-        Отправляет сообщение и возвращает текст ответа.
-        При неудаче перебирает все модели из FALLBACK_MODELS.
+        РћС‚РїСЂР°РІР»СЏРµС‚ СЃРѕРѕР±С‰РµРЅРёРµ Рё РІРѕР·РІСЂР°С‰Р°РµС‚ С‚РµРєСЃС‚ РѕС‚РІРµС‚Р°.
+        РџСЂРё РЅРµСѓРґР°С‡Рµ РїРµСЂРµР±РёСЂР°РµС‚ РІСЃРµ РјРѕРґРµР»Рё РёР· FALLBACK_MODELS.
 
         Args:
-            prompt: Текст запроса
-            temperature: 0.0–1.0 (выше = креативнее)
-            max_tokens: Максимальная длина ответа
-            system: Системный промпт
+            prompt: РўРµРєСЃС‚ Р·Р°РїСЂРѕСЃР°
+            temperature: 0.0вЂ“1.0 (РІС‹С€Рµ = РєСЂРµР°С‚РёРІРЅРµРµ)
+            max_tokens: РњР°РєСЃРёРјР°Р»СЊРЅР°СЏ РґР»РёРЅР° РѕС‚РІРµС‚Р°
+            system: РЎРёСЃС‚РµРјРЅС‹Р№ РїСЂРѕРјРїС‚
 
         Returns:
-            Текст ответа или None при ошибке
+            РўРµРєСЃС‚ РѕС‚РІРµС‚Р° РёР»Рё None РїСЂРё РѕС€РёР±РєРµ
         """
         payload = {
             "messages": [{"role": "user", "content": prompt}],
@@ -144,12 +144,12 @@ class LLMClient:
 
         for model in self._models:
             if model != self.model:
-                print(f"[LLM] Переключаюсь на: {model}")
+                print(f"[LLM] РџРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ РЅР°: {model}")
             result = self._call_model(model, payload, system)
             if result is not None:
                 return result
 
-        print("[LLM] Все модели недоступны.")
+        print("[LLM] Р’СЃРµ РјРѕРґРµР»Рё РЅРµРґРѕСЃС‚СѓРїРЅС‹.")
         return None
 
     def chat_json(
@@ -159,17 +159,17 @@ class LLMClient:
         max_tokens: int = 2000,
     ) -> Optional[dict]:
         """
-        Отправляет запрос и парсит ответ как JSON.
-        Удобно для структурированных задач (анализ, адаптация).
+        РћС‚РїСЂР°РІР»СЏРµС‚ Р·Р°РїСЂРѕСЃ Рё РїР°СЂСЃРёС‚ РѕС‚РІРµС‚ РєР°Рє JSON.
+        РЈРґРѕР±РЅРѕ РґР»СЏ СЃС‚СЂСѓРєС‚СѓСЂРёСЂРѕРІР°РЅРЅС‹С… Р·Р°РґР°С‡ (Р°РЅР°Р»РёР·, Р°РґР°РїС‚Р°С†РёСЏ).
 
         Returns:
-            Словарь из JSON или None при ошибке парсинга
+            РЎР»РѕРІР°СЂСЊ РёР· JSON РёР»Рё None РїСЂРё РѕС€РёР±РєРµ РїР°СЂСЃРёРЅРіР°
         """
         text = self.chat(
             prompt=prompt,
             temperature=temperature,
             max_tokens=max_tokens,
-            system="Ты — полезный AI-ассистент. Отвечай ТОЛЬКО валидным JSON без ```json обёрток.",
+            system="РўС‹ вЂ” РїРѕР»РµР·РЅС‹Р№ AI-Р°СЃСЃРёСЃС‚РµРЅС‚. РћС‚РІРµС‡Р°Р№ РўРћР›Р¬РљРћ РІР°Р»РёРґРЅС‹Рј JSON Р±РµР· ```json РѕР±С‘СЂС‚РѕРє.",
         )
 
         if not text:
@@ -179,16 +179,16 @@ class LLMClient:
 
     def _strip_reasoning(self, text: str) -> str:
         """
-        Убирает thinking-блок reasoning-моделей (Nemotron и др.).
-        Они пишут план на английском, потом выдают ответ на русском.
-        Берём последний связный блок текста после пустых строк.
+        РЈР±РёСЂР°РµС‚ thinking-Р±Р»РѕРє reasoning-РјРѕРґРµР»РµР№ (Nemotron Рё РґСЂ.).
+        РћРЅРё РїРёС€СѓС‚ РїР»Р°РЅ РЅР° Р°РЅРіР»РёР№СЃРєРѕРј, РїРѕС‚РѕРј РІС‹РґР°СЋС‚ РѕС‚РІРµС‚ РЅР° СЂСѓСЃСЃРєРѕРј.
+        Р‘РµСЂС‘Рј РїРѕСЃР»РµРґРЅРёР№ СЃРІСЏР·РЅС‹Р№ Р±Р»РѕРє С‚РµРєСЃС‚Р° РїРѕСЃР»Рµ РїСѓСЃС‚С‹С… СЃС‚СЂРѕРє.
         """
-        # Если есть тег <think>...</think> — убираем его
+        # Р•СЃР»Рё РµСЃС‚СЊ С‚РµРі <think>...</think> вЂ” СѓР±РёСЂР°РµРј РµРіРѕ
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
-        # Разбиваем на параграфы и берём последний большой блок на кириллице
+        # Р Р°Р·Р±РёРІР°РµРј РЅР° РїР°СЂР°РіСЂР°С„С‹ Рё Р±РµСЂС‘Рј РїРѕСЃР»РµРґРЅРёР№ Р±РѕР»СЊС€РѕР№ Р±Р»РѕРє РЅР° РєРёСЂРёР»Р»РёС†Рµ
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        cyrillic_blocks = [p for p in paragraphs if re.search(r"[а-яА-ЯёЁ]{10,}", p)]
+        cyrillic_blocks = [p for p in paragraphs if re.search(r"[Р°-СЏРђ-РЇС‘РЃ]{10,}", p)]
 
         if cyrillic_blocks:
             return "\n\n".join(cyrillic_blocks)
@@ -196,14 +196,14 @@ class LLMClient:
         return text
 
     def _parse_json(self, text: str) -> Optional[dict]:
-        """Извлекает JSON из текста, убирая markdown-блоки и reasoning если есть."""
-        # Убираем <think>...</think> блок если есть
+        """РР·РІР»РµРєР°РµС‚ JSON РёР· С‚РµРєСЃС‚Р°, СѓР±РёСЂР°СЏ markdown-Р±Р»РѕРєРё Рё reasoning РµСЃР»Рё РµСЃС‚СЊ."""
+        # РЈР±РёСЂР°РµРј <think>...</think> Р±Р»РѕРє РµСЃР»Рё РµСЃС‚СЊ
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-        # Убираем markdown-обёртки
+        # РЈР±РёСЂР°РµРј markdown-РѕР±С‘СЂС‚РєРё
         text = re.sub(r"```json\s*", "", text)
         text = re.sub(r"```\s*", "", text).strip()
 
-        # Ищем первый JSON-объект (для reasoning-моделей которые пишут текст до/после)
+        # РС‰РµРј РїРµСЂРІС‹Р№ JSON-РѕР±СЉРµРєС‚ (РґР»СЏ reasoning-РјРѕРґРµР»РµР№ РєРѕС‚РѕСЂС‹Рµ РїРёС€СѓС‚ С‚РµРєСЃС‚ РґРѕ/РїРѕСЃР»Рµ)
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
             try:
@@ -214,58 +214,58 @@ class LLMClient:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            print(f"[LLM] Не удалось распарсить JSON: {text[:80]}...")
+            print(f"[LLM] РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїР°СЂСЃРёС‚СЊ JSON: {text[:80]}...")
             return None
 
 
-# ─── Тест ────────────────────────────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ РўРµСЃС‚ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 if __name__ == "__main__":
     client = LLMClient()
-    result = client.chat("Ответь одним словом: РАБОТАЕТ")
-    print("Ответ:", result)
+    result = client.chat("РћС‚РІРµС‚СЊ РѕРґРЅРёРј СЃР»РѕРІРѕРј: Р РђР‘РћРўРђР•Рў")
+    print("РћС‚РІРµС‚:", result)
 
     """
-    Тонкая обёртка над OpenRouter/OpenAI Chat Completions API.
-    Используется всеми модулями вместо google-genai.
-    При 429 (rate limit) автоматически переключается на следующую модель из FALLBACK_MODELS.
+    РўРѕРЅРєР°СЏ РѕР±С‘СЂС‚РєР° РЅР°Рґ OpenRouter/OpenAI Chat Completions API.
+    РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РІСЃРµРјРё РјРѕРґСѓР»СЏРјРё РІРјРµСЃС‚Рѕ google-genai.
+    РџСЂРё 429 (rate limit) Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїРµСЂРµРєР»СЋС‡Р°РµС‚СЃСЏ РЅР° СЃР»РµРґСѓСЋС‰СѓСЋ РјРѕРґРµР»СЊ РёР· FALLBACK_MODELS.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = config.OPENROUTER_API_KEY
         self.base_url = config.OPENROUTER_BASE_URL
-        # Основная модель из .env, остальные — резервные
+        # РћСЃРЅРѕРІРЅР°СЏ РјРѕРґРµР»СЊ РёР· .env, РѕСЃС‚Р°Р»СЊРЅС‹Рµ вЂ” СЂРµР·РµСЂРІРЅС‹Рµ
         self.model = config.LLM_MODEL
         self._models = [self.model] + [m for m in FALLBACK_MODELS if m != self.model]
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            # OpenRouter рекомендует передавать эти заголовки для статистики
+            # OpenRouter СЂРµРєРѕРјРµРЅРґСѓРµС‚ РїРµСЂРµРґР°РІР°С‚СЊ СЌС‚Рё Р·Р°РіРѕР»РѕРІРєРё РґР»СЏ СЃС‚Р°С‚РёСЃС‚РёРєРё
             "HTTP-Referer": "https://github.com/ai-job-hunter",
             "X-Title": "AI Job Hunter Agent",
         }
-        print(f"[LLM] Инициализирован. Модель: {self.model}")
+        print(f"[LLM] РРЅРёС†РёР°Р»РёР·РёСЂРѕРІР°РЅ. РњРѕРґРµР»СЊ: {self.model}")
 
     def chat(
         self,
         prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 2000,
-        system: str = "Ты — полезный AI-ассистент. Отвечай на русском языке.",
+        system: str = "РўС‹ вЂ” РїРѕР»РµР·РЅС‹Р№ AI-Р°СЃСЃРёСЃС‚РµРЅС‚. РћС‚РІРµС‡Р°Р№ РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ.",
     ) -> Optional[str]:
         """
-        Отправляет сообщение и возвращает текст ответа.
+        РћС‚РїСЂР°РІР»СЏРµС‚ СЃРѕРѕР±С‰РµРЅРёРµ Рё РІРѕР·РІСЂР°С‰Р°РµС‚ С‚РµРєСЃС‚ РѕС‚РІРµС‚Р°.
 
         Args:
-            prompt: Текст запроса
-            temperature: 0.0–1.0 (выше = креативнее)
-            max_tokens: Максимальная длина ответа
-            system: Системный промпт
+            prompt: РўРµРєСЃС‚ Р·Р°РїСЂРѕСЃР°
+            temperature: 0.0вЂ“1.0 (РІС‹С€Рµ = РєСЂРµР°С‚РёРІРЅРµРµ)
+            max_tokens: РњР°РєСЃРёРјР°Р»СЊРЅР°СЏ РґР»РёРЅР° РѕС‚РІРµС‚Р°
+            system: РЎРёСЃС‚РµРјРЅС‹Р№ РїСЂРѕРјРїС‚
 
         Returns:
-            Текст ответа или None при ошибке
+            РўРµРєСЃС‚ РѕС‚РІРµС‚Р° РёР»Рё None РїСЂРё РѕС€РёР±РєРµ
         """
-        # Модели Gemma не поддерживают system role — встраиваем в user-сообщение
+        # РњРѕРґРµР»Рё Gemma РЅРµ РїРѕРґРґРµСЂР¶РёРІР°СЋС‚ system role вЂ” РІСЃС‚СЂР°РёРІР°РµРј РІ user-СЃРѕРѕР±С‰РµРЅРёРµ
         GEMMA_MODELS = {"google/gemma-3-27b-it:free", "google/gemma-3-12b-it:free"}
 
         base_messages_with_system = [
@@ -283,46 +283,46 @@ if __name__ == "__main__":
             "max_tokens": max_tokens,
         }
 
-        # Пробуем модели по очереди при rate limit (429)
+        # РџСЂРѕР±СѓРµРј РјРѕРґРµР»Рё РїРѕ РѕС‡РµСЂРµРґРё РїСЂРё rate limit (429)
         for model in self._models:
             payload["model"] = model
-            # Для Gemma убираем system role
+            # Р”Р»СЏ Gemma СѓР±РёСЂР°РµРј system role
             payload["messages"] = base_messages_no_system if model in GEMMA_MODELS else base_messages_with_system
             if model != self.model:
-                print(f"[LLM] Переключаюсь на резервную модель: {model}")
+                print(f"[LLM] РџРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ РЅР° СЂРµР·РµСЂРІРЅСѓСЋ РјРѕРґРµР»СЊ: {model}")
             try:
                 response = requests.post(
                     f"{self.base_url}/chat/completions",
                     headers=self.headers,
                     json=payload,
-                    timeout=120,  # большие модели могут отвечать до 2 минут
+                    timeout=120,  # Р±РѕР»СЊС€РёРµ РјРѕРґРµР»Рё РјРѕРіСѓС‚ РѕС‚РІРµС‡Р°С‚СЊ РґРѕ 2 РјРёРЅСѓС‚
                 )
                 if response.status_code == 429:
-                    print(f"[LLM] 429 Rate limit на {model}, пробую следующую...")
+                    print(f"[LLM] 429 Rate limit РЅР° {model}, РїСЂРѕР±СѓСЋ СЃР»РµРґСѓСЋС‰СѓСЋ...")
                     continue
                 response.raise_for_status()
                 data = response.json()
                 choices = data.get("choices", [])
                 if not choices or not choices[0].get("message", {}).get("content"):
-                    print(f"[LLM] Пустой choices на {model}, пробую следующую...")
+                    print(f"[LLM] РџСѓСЃС‚РѕР№ choices РЅР° {model}, РїСЂРѕР±СѓСЋ СЃР»РµРґСѓСЋС‰СѓСЋ...")
                     continue
                 content = choices[0]["message"]["content"].strip()
-                # Nemotron и другие reasoning-модели добавляют блок размышлений перед ответом.
-                # Отрезаем всё до последнего абзаца после пустой строки с кириллицей.
+                # Nemotron Рё РґСЂСѓРіРёРµ reasoning-РјРѕРґРµР»Рё РґРѕР±Р°РІР»СЏСЋС‚ Р±Р»РѕРє СЂР°Р·РјС‹С€Р»РµРЅРёР№ РїРµСЂРµРґ РѕС‚РІРµС‚РѕРј.
+                # РћС‚СЂРµР·Р°РµРј РІСЃС‘ РґРѕ РїРѕСЃР»РµРґРЅРµРіРѕ Р°Р±Р·Р°С†Р° РїРѕСЃР»Рµ РїСѓСЃС‚РѕР№ СЃС‚СЂРѕРєРё СЃ РєРёСЂРёР»Р»РёС†РµР№.
                 content = self._strip_reasoning(content)
                 return content
 
             except requests.exceptions.Timeout:
-                print(f"[LLM] Таймаут на {model}, пробую следующую...")
+                print(f"[LLM] РўР°Р№РјР°СѓС‚ РЅР° {model}, РїСЂРѕР±СѓСЋ СЃР»РµРґСѓСЋС‰СѓСЋ...")
                 continue
             except requests.exceptions.HTTPError as e:
-                print(f"[LLM] ОШИБКА HTTP {response.status_code} на {model}: {response.text[:150]}")
+                print(f"[LLM] РћРЁРР‘РљРђ HTTP {response.status_code} РЅР° {model}: {response.text[:150]}")
                 continue
             except Exception as e:
-                print(f"[LLM] ОШИБКА на {model}: {e}")
+                print(f"[LLM] РћРЁРР‘РљРђ РЅР° {model}: {e}")
                 continue
 
-        print("[LLM] Все модели недоступны.")
+        print("[LLM] Р’СЃРµ РјРѕРґРµР»Рё РЅРµРґРѕСЃС‚СѓРїРЅС‹.")
         return None
 
     def chat_json(
@@ -332,17 +332,17 @@ if __name__ == "__main__":
         max_tokens: int = 2000,
     ) -> Optional[dict]:
         """
-        Отправляет запрос и парсит ответ как JSON.
-        Удобно для структурированных задач (анализ, адаптация).
+        РћС‚РїСЂР°РІР»СЏРµС‚ Р·Р°РїСЂРѕСЃ Рё РїР°СЂСЃРёС‚ РѕС‚РІРµС‚ РєР°Рє JSON.
+        РЈРґРѕР±РЅРѕ РґР»СЏ СЃС‚СЂСѓРєС‚СѓСЂРёСЂРѕРІР°РЅРЅС‹С… Р·Р°РґР°С‡ (Р°РЅР°Р»РёР·, Р°РґР°РїС‚Р°С†РёСЏ).
 
         Returns:
-            Словарь из JSON или None при ошибке парсинга
+            РЎР»РѕРІР°СЂСЊ РёР· JSON РёР»Рё None РїСЂРё РѕС€РёР±РєРµ РїР°СЂСЃРёРЅРіР°
         """
         text = self.chat(
             prompt=prompt,
             temperature=temperature,
             max_tokens=max_tokens,
-            system="Ты — полезный AI-ассистент. Отвечай ТОЛЬКО валидным JSON без ```json обёрток.",
+            system="РўС‹ вЂ” РїРѕР»РµР·РЅС‹Р№ AI-Р°СЃСЃРёСЃС‚РµРЅС‚. РћС‚РІРµС‡Р°Р№ РўРћР›Р¬РљРћ РІР°Р»РёРґРЅС‹Рј JSON Р±РµР· ```json РѕР±С‘СЂС‚РѕРє.",
         )
 
         if not text:
@@ -352,34 +352,34 @@ if __name__ == "__main__":
 
     def _strip_reasoning(self, text: str) -> str:
         """
-        Убирает thinking-блок reasoning-моделей (Nemotron и др.).
-        Они пишут план на английском, потом выдают ответ на русском.
-        Берём последний связный блок текста после пустых строк.
+        РЈР±РёСЂР°РµС‚ thinking-Р±Р»РѕРє reasoning-РјРѕРґРµР»РµР№ (Nemotron Рё РґСЂ.).
+        РћРЅРё РїРёС€СѓС‚ РїР»Р°РЅ РЅР° Р°РЅРіР»РёР№СЃРєРѕРј, РїРѕС‚РѕРј РІС‹РґР°СЋС‚ РѕС‚РІРµС‚ РЅР° СЂСѓСЃСЃРєРѕРј.
+        Р‘РµСЂС‘Рј РїРѕСЃР»РµРґРЅРёР№ СЃРІСЏР·РЅС‹Р№ Р±Р»РѕРє С‚РµРєСЃС‚Р° РїРѕСЃР»Рµ РїСѓСЃС‚С‹С… СЃС‚СЂРѕРє.
         """
         import re
-        # Если есть тег <think>...</think> — убираем его
+        # Р•СЃР»Рё РµСЃС‚СЊ С‚РµРі <think>...</think> вЂ” СѓР±РёСЂР°РµРј РµРіРѕ
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
-        # Разбиваем на параграфы и берём последний большой блок на кириллице
+        # Р Р°Р·Р±РёРІР°РµРј РЅР° РїР°СЂР°РіСЂР°С„С‹ Рё Р±РµСЂС‘Рј РїРѕСЃР»РµРґРЅРёР№ Р±РѕР»СЊС€РѕР№ Р±Р»РѕРє РЅР° РєРёСЂРёР»Р»РёС†Рµ
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        cyrillic_blocks = [p for p in paragraphs if re.search(r"[а-яА-ЯёЁ]{10,}", p)]
+        cyrillic_blocks = [p for p in paragraphs if re.search(r"[Р°-СЏРђ-РЇС‘РЃ]{10,}", p)]
 
         if cyrillic_blocks:
-            # Возвращаем все кириллические параграфы подряд
+            # Р’РѕР·РІСЂР°С‰Р°РµРј РІСЃРµ РєРёСЂРёР»Р»РёС‡РµСЃРєРёРµ РїР°СЂР°РіСЂР°С„С‹ РїРѕРґСЂСЏРґ
             return "\n\n".join(cyrillic_blocks)
 
         return text
 
     def _parse_json(self, text: str) -> Optional[dict]:
-        """Извлекает JSON из текста, убирая markdown-блоки и reasoning если есть."""
+        """РР·РІР»РµРєР°РµС‚ JSON РёР· С‚РµРєСЃС‚Р°, СѓР±РёСЂР°СЏ markdown-Р±Р»РѕРєРё Рё reasoning РµСЃР»Рё РµСЃС‚СЊ."""
         import re
-        # Убираем <think>...</think> блок если есть
+        # РЈР±РёСЂР°РµРј <think>...</think> Р±Р»РѕРє РµСЃР»Рё РµСЃС‚СЊ
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-        # Убираем markdown-обёртки
+        # РЈР±РёСЂР°РµРј markdown-РѕР±С‘СЂС‚РєРё
         text = re.sub(r"```json\s*", "", text)
         text = re.sub(r"```\s*", "", text).strip()
 
-        # Ищем первый JSON-объект (для reasoning-моделей которые пишут текст до/после)
+        # РС‰РµРј РїРµСЂРІС‹Р№ JSON-РѕР±СЉРµРєС‚ (РґР»СЏ reasoning-РјРѕРґРµР»РµР№ РєРѕС‚РѕСЂС‹Рµ РїРёС€СѓС‚ С‚РµРєСЃС‚ РґРѕ/РїРѕСЃР»Рµ)
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
             try:
@@ -390,13 +390,13 @@ if __name__ == "__main__":
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            print(f"[LLM] Не удалось распарсить JSON: {text[:80]}...")
+            print(f"[LLM] РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїР°СЂСЃРёС‚СЊ JSON: {text[:80]}...")
             return None
 
 
-# ─── Тест ────────────────────────────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ РўРµСЃС‚ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 if __name__ == "__main__":
     client = LLMClient()
-    result = client.chat("Ответь одним словом: РАБОТАЕТ")
-    print("Ответ:", result)
+    result = client.chat("РћС‚РІРµС‚СЊ РѕРґРЅРёРј СЃР»РѕРІРѕРј: Р РђР‘РћРўРђР•Рў")
+    print("РћС‚РІРµС‚:", result)

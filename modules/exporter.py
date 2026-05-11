@@ -20,7 +20,7 @@ class Exporter:
     - PDF: для отправки работодателям
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         config.OUTPUT_DIR.mkdir(exist_ok=True)
 
     # ─── JSON ─────────────────────────────────────────────────────────────────
@@ -302,7 +302,7 @@ class Exporter:
         print(f"[PDF] Резюме сохранено: {path}")
         return path
 
-    def _pdf_section_header(self, pdf, font_name: str, title: str):
+    def _pdf_section_header(self, pdf, font_name: str, title: str) -> None:
         """Рисует заголовок секции в PDF."""
         from fpdf import XPos, YPos
         pdf.set_font(font_name, "B", 11)

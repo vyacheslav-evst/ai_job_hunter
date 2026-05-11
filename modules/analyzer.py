@@ -54,9 +54,7 @@ class VacancyAnalyzer:
     Сравнивает требования вакансии с профилем кандидата из base_resume.json.
     """
 
-    def __init__(self):
-        # Инициализируем LLM клиент (OpenRouter)
-        self.llm = LLMClient()
+    def __init__(self) -> None:
 
         # Загружаем базовое резюме кандидата
         self.resume = self._load_resume()

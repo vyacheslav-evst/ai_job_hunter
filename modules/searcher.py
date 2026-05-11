@@ -1,9 +1,9 @@
 """
-searcher.py — модуль поиска вакансий
-Источники: hh.ru (web scraping), Habr Career (web scraping)
+searcher.py вЂ” РјРѕРґСѓР»СЊ РїРѕРёСЃРєР° РІР°РєР°РЅСЃРёР№
+РСЃС‚РѕС‡РЅРёРєРё: hh.ru (web scraping), Habr Career (web scraping)
 
-hh.ru заблокировал прямые API-запросы без OAuth-авторизации,
-поэтому используем парсинг HTML-страниц через BeautifulSoup.
+hh.ru Р·Р°Р±Р»РѕРєРёСЂРѕРІР°Р» РїСЂСЏРјС‹Рµ API-Р·Р°РїСЂРѕСЃС‹ Р±РµР· OAuth-Р°РІС‚РѕСЂРёР·Р°С†РёРё,
+РїРѕСЌС‚РѕРјСѓ РёСЃРїРѕР»СЊР·СѓРµРј РїР°СЂСЃРёРЅРі HTML-СЃС‚СЂР°РЅРёС† С‡РµСЂРµР· BeautifulSoup.
 """
 
 import re
@@ -19,10 +19,10 @@ from pydantic import BaseModel, ValidationError
 import config
 
 
-# ─── Модель вакансии (Pydantic) ───────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ РњРѕРґРµР»СЊ РІР°РєР°РЅСЃРёРё (Pydantic) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 class Vacancy(BaseModel):
-    """Структура одной вакансии после парсинга."""
+    """РЎС‚СЂСѓРєС‚СѓСЂР° РѕРґРЅРѕР№ РІР°РєР°РЅСЃРёРё РїРѕСЃР»Рµ РїР°СЂСЃРёРЅРіР°."""
 
     id: str
     title: str
@@ -31,7 +31,7 @@ class Vacancy(BaseModel):
     salary_from: Optional[int] = None
     salary_to: Optional[int] = None
     salary_currency: Optional[str] = None
-    location: str = "Не указано"
+    location: str = "РќРµ СѓРєР°Р·Р°РЅРѕ"
     remote: bool = False
     description: str = ""
     requirements: str = ""
@@ -39,22 +39,22 @@ class Vacancy(BaseModel):
     source: str = "hh.ru"
 
     def salary_str(self) -> str:
-        """Возвращает зарплату в читаемом виде."""
+        """Р’РѕР·РІСЂР°С‰Р°РµС‚ Р·Р°СЂРїР»Р°С‚Сѓ РІ С‡РёС‚Р°РµРјРѕРј РІРёРґРµ."""
         if self.salary_from and self.salary_to:
-            return f"{self.salary_from:,}–{self.salary_to:,} {self.salary_currency or 'RUB'}"
+            return f"{self.salary_from:,}вЂ“{self.salary_to:,} {self.salary_currency or 'RUB'}"
         elif self.salary_from:
-            return f"от {self.salary_from:,} {self.salary_currency or 'RUB'}"
+            return f"РѕС‚ {self.salary_from:,} {self.salary_currency or 'RUB'}"
         elif self.salary_to:
-            return f"до {self.salary_to:,} {self.salary_currency or 'RUB'}"
-        return "не указана"
+            return f"РґРѕ {self.salary_to:,} {self.salary_currency or 'RUB'}"
+        return "РЅРµ СѓРєР°Р·Р°РЅР°"
 
 
-# ─── Основной класс поисковика ────────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ РћСЃРЅРѕРІРЅРѕР№ РєР»Р°СЃСЃ РїРѕРёСЃРєРѕРІРёРєР° в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 class JobSearcher:
     """
-    Ищет вакансии на hh.ru и Habr Career через парсинг HTML.
-    Представляется как обычный браузер.
+    РС‰РµС‚ РІР°РєР°РЅСЃРёРё РЅР° hh.ru Рё Habr Career С‡РµСЂРµР· РїР°СЂСЃРёРЅРі HTML.
+    РџСЂРµРґСЃС‚Р°РІР»СЏРµС‚СЃСЏ РєР°Рє РѕР±С‹С‡РЅС‹Р№ Р±СЂР°СѓР·РµСЂ.
     """
 
     HH_SEARCH_URL = "https://hh.ru/search/vacancy"
@@ -63,21 +63,21 @@ class JobSearcher:
     HABR_SEARCH_URL = "https://career.habr.com/vacancies"
     HABR_BASE_URL   = "https://career.habr.com"
 
-    # Путь к файлу кэша описаний вакансий
+    # РџСѓС‚СЊ Рє С„Р°Р№Р»Сѓ РєСЌС€Р° РѕРїРёСЃР°РЅРёР№ РІР°РєР°РЅСЃРёР№
     DESCRIPTIONS_CACHE_PATH = config.OUTPUT_DIR / "descriptions_cache.json"
 
-    # Слова в названии вакансии, которые точно не AI/prompt — фильтруем как мусор
+    # РЎР»РѕРІР° РІ РЅР°Р·РІР°РЅРёРё РІР°РєР°РЅСЃРёРё, РєРѕС‚РѕСЂС‹Рµ С‚РѕС‡РЅРѕ РЅРµ AI/prompt вЂ” С„РёР»СЊС‚СЂСѓРµРј РєР°Рє РјСѓСЃРѕСЂ
     NOISE_TITLE_KEYWORDS = [
-        "менеджер отдела продаж", "тендерный специалист", "бухгалтер",
-        "водитель", "кладовщик", "сварщик", "охранник", "продавец",
-        "юрист", "экономист", "логист", "секретарь",
-        "графический дизайнер", "graphic designer",
+        "РјРµРЅРµРґР¶РµСЂ РѕС‚РґРµР»Р° РїСЂРѕРґР°Р¶", "С‚РµРЅРґРµСЂРЅС‹Р№ СЃРїРµС†РёР°Р»РёСЃС‚", "Р±СѓС…РіР°Р»С‚РµСЂ",
+        "РІРѕРґРёС‚РµР»СЊ", "РєР»Р°РґРѕРІС‰РёРє", "СЃРІР°СЂС‰РёРє", "РѕС…СЂР°РЅРЅРёРє", "РїСЂРѕРґР°РІРµС†",
+        "СЋСЂРёСЃС‚", "СЌРєРѕРЅРѕРјРёСЃС‚", "Р»РѕРіРёСЃС‚", "СЃРµРєСЂРµС‚Р°СЂСЊ",
+        "РіСЂР°С„РёС‡РµСЃРєРёР№ РґРёР·Р°Р№РЅРµСЂ", "graphic designer",
     ]
 
-    # Слова в названии, указывающие на уровень выше джуна — отсекаем до анализа
+    # РЎР»РѕРІР° РІ РЅР°Р·РІР°РЅРёРё, СѓРєР°Р·С‹РІР°СЋС‰РёРµ РЅР° СѓСЂРѕРІРµРЅСЊ РІС‹С€Рµ РґР¶СѓРЅР° вЂ” РѕС‚СЃРµРєР°РµРј РґРѕ Р°РЅР°Р»РёР·Р°
     SENIOR_TITLE_KEYWORDS = [
-        "senior", "ведущий", "lead", "team lead", "teamlead",
-        "principal", "staff ", "архитектор",
+        "senior", "РІРµРґСѓС‰РёР№", "lead", "team lead", "teamlead",
+        "principal", "staff ", "Р°СЂС…РёС‚РµРєС‚РѕСЂ",
     ]
 
     HEADERS = {
@@ -92,16 +92,16 @@ class JobSearcher:
         "Connection": "keep-alive",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.session = requests.Session()
         self.session.headers.update(self.HEADERS)
-        # Кэш описаний: vacancy_id -> описание (загружается с диска при старте)
+        # РљСЌС€ РѕРїРёСЃР°РЅРёР№: vacancy_id -> РѕРїРёСЃР°РЅРёРµ (Р·Р°РіСЂСѓР¶Р°РµС‚СЃСЏ СЃ РґРёСЃРєР° РїСЂРё СЃС‚Р°СЂС‚Рµ)
         self._desc_cache: dict[str, str] = self._load_desc_cache()
 
-    # ─── Кэш описаний вакансий ────────────────────────────────────────────────
+    # в”Ђв”Ђв”Ђ РљСЌС€ РѕРїРёСЃР°РЅРёР№ РІР°РєР°РЅСЃРёР№ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
     def _load_desc_cache(self) -> dict[str, str]:
-        """Загружает кэш описаний из файла."""
+        """Р—Р°РіСЂСѓР¶Р°РµС‚ РєСЌС€ РѕРїРёСЃР°РЅРёР№ РёР· С„Р°Р№Р»Р°."""
         if self.DESCRIPTIONS_CACHE_PATH.exists():
             try:
                 with open(self.DESCRIPTIONS_CACHE_PATH, encoding="utf-8") as f:
@@ -111,12 +111,12 @@ class JobSearcher:
         return {}
 
     def _save_desc_cache(self) -> None:
-        """Сохраняет кэш описаний на диск."""
+        """РЎРѕС…СЂР°РЅСЏРµС‚ РєСЌС€ РѕРїРёСЃР°РЅРёР№ РЅР° РґРёСЃРє."""
         config.OUTPUT_DIR.mkdir(exist_ok=True)
         with open(self.DESCRIPTIONS_CACHE_PATH, "w", encoding="utf-8") as f:
             json.dump(self._desc_cache, f, ensure_ascii=False, indent=2)
 
-    # ─── HTTP-запрос с retry/backoff ──────────────────────────────────────────
+    # в”Ђв”Ђв”Ђ HTTP-Р·Р°РїСЂРѕСЃ СЃ retry/backoff в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
     def _get_with_retry(
         self,
@@ -127,33 +127,33 @@ class JobSearcher:
         max_retries: int = 3,
     ) -> Optional[requests.Response]:
         """
-        GET-запрос с exponential backoff при ошибках 429/503/ConnectionError.
+        GET-Р·Р°РїСЂРѕСЃ СЃ exponential backoff РїСЂРё РѕС€РёР±РєР°С… 429/503/ConnectionError.
 
         Args:
-            url: URL запроса
-            params: Query-параметры
-            timeout: Таймаут в секундах
-            verify: Проверять SSL (False для Habr через VPN)
-            max_retries: Максимальное число повторных попыток
+            url: URL Р·Р°РїСЂРѕСЃР°
+            params: Query-РїР°СЂР°РјРµС‚СЂС‹
+            timeout: РўР°Р№РјР°СѓС‚ РІ СЃРµРєСѓРЅРґР°С…
+            verify: РџСЂРѕРІРµСЂСЏС‚СЊ SSL (False РґР»СЏ Habr С‡РµСЂРµР· VPN)
+            max_retries: РњР°РєСЃРёРјР°Р»СЊРЅРѕРµ С‡РёСЃР»Рѕ РїРѕРІС‚РѕСЂРЅС‹С… РїРѕРїС‹С‚РѕРє
 
         Returns:
-            Response или None если все попытки исчерпаны
+            Response РёР»Рё None РµСЃР»Рё РІСЃРµ РїРѕРїС‹С‚РєРё РёСЃС‡РµСЂРїР°РЅС‹
         """
         for attempt in range(max_retries):
             try:
                 response = self.session.get(url, params=params, timeout=timeout, verify=verify)
 
-                # 429 Too Many Requests — ждём и повторяем
+                # 429 Too Many Requests вЂ” Р¶РґС‘Рј Рё РїРѕРІС‚РѕСЂСЏРµРј
                 if response.status_code == 429:
-                    wait = 2 ** attempt * 3  # 3, 6, 12 секунд
-                    print(f"  [RATE LIMIT] 429 — ждём {wait}с (попытка {attempt + 1}/{max_retries})")
+                    wait = 2 ** attempt * 3  # 3, 6, 12 СЃРµРєСѓРЅРґ
+                    print(f"  [RATE LIMIT] 429 вЂ” Р¶РґС‘Рј {wait}СЃ (РїРѕРїС‹С‚РєР° {attempt + 1}/{max_retries})")
                     time.sleep(wait)
                     continue
 
-                # 503 Service Unavailable — короткая пауза и повтор
+                # 503 Service Unavailable вЂ” РєРѕСЂРѕС‚РєР°СЏ РїР°СѓР·Р° Рё РїРѕРІС‚РѕСЂ
                 if response.status_code == 503:
-                    wait = 2 ** attempt * 2  # 2, 4, 8 секунд
-                    print(f"  [503] Сервис недоступен — ждём {wait}с (попытка {attempt + 1}/{max_retries})")
+                    wait = 2 ** attempt * 2  # 2, 4, 8 СЃРµРєСѓРЅРґ
+                    print(f"  [503] РЎРµСЂРІРёСЃ РЅРµРґРѕСЃС‚СѓРїРµРЅ вЂ” Р¶РґС‘Рј {wait}СЃ (РїРѕРїС‹С‚РєР° {attempt + 1}/{max_retries})")
                     time.sleep(wait)
                     continue
 
@@ -162,16 +162,16 @@ class JobSearcher:
 
             except requests.exceptions.ConnectionError as e:
                 wait = 2 ** attempt * 2
-                print(f"  [CONN ERROR] попытка {attempt + 1}/{max_retries} — ждём {wait}с: {e}")
+                print(f"  [CONN ERROR] РїРѕРїС‹С‚РєР° {attempt + 1}/{max_retries} вЂ” Р¶РґС‘Рј {wait}СЃ: {e}")
                 time.sleep(wait)
             except requests.exceptions.Timeout:
-                print(f"  [TIMEOUT] попытка {attempt + 1}/{max_retries}")
+                print(f"  [TIMEOUT] РїРѕРїС‹С‚РєР° {attempt + 1}/{max_retries}")
                 time.sleep(2 ** attempt)
             except requests.exceptions.RequestException as e:
-                print(f"  [ОШИБКА] {e}")
-                return None  # прочие ошибки — не повторяем
+                print(f"  [РћРЁРР‘РљРђ] {e}")
+                return None  # РїСЂРѕС‡РёРµ РѕС€РёР±РєРё вЂ” РЅРµ РїРѕРІС‚РѕСЂСЏРµРј
 
-        print(f"  [FAIL] Все {max_retries} попытки исчерпаны для {url}")
+        print(f"  [FAIL] Р’СЃРµ {max_retries} РїРѕРїС‹С‚РєРё РёСЃС‡РµСЂРїР°РЅС‹ РґР»СЏ {url}")
         return None
 
     def search_hh(
@@ -182,18 +182,18 @@ class JobSearcher:
         pages: int = 2,
     ) -> list[Vacancy]:
         """
-        Ищет вакансии на hh.ru по поисковому запросу.
+        РС‰РµС‚ РІР°РєР°РЅСЃРёРё РЅР° hh.ru РїРѕ РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ.
 
         Args:
-            query: Поисковый запрос (например "prompt engineer")
-            area: Регион (113 = вся Россия, 1 = Москва, 2 = СПб)
-            only_remote: Только удалённая работа
-            pages: Сколько страниц загружать (на каждой ~20 вакансий)
+            query: РџРѕРёСЃРєРѕРІС‹Р№ Р·Р°РїСЂРѕСЃ (РЅР°РїСЂРёРјРµСЂ "prompt engineer")
+            area: Р РµРіРёРѕРЅ (113 = РІСЃСЏ Р РѕСЃСЃРёСЏ, 1 = РњРѕСЃРєРІР°, 2 = РЎРџР±)
+            only_remote: РўРѕР»СЊРєРѕ СѓРґР°Р»С‘РЅРЅР°СЏ СЂР°Р±РѕС‚Р°
+            pages: РЎРєРѕР»СЊРєРѕ СЃС‚СЂР°РЅРёС† Р·Р°РіСЂСѓР¶Р°С‚СЊ (РЅР° РєР°Р¶РґРѕР№ ~20 РІР°РєР°РЅСЃРёР№)
 
         Returns:
-            Список объектов Vacancy
+            РЎРїРёСЃРѕРє РѕР±СЉРµРєС‚РѕРІ Vacancy
         """
-        print(f"[ПОИСК] hh.ru: '{query}' | регион: {area} | удалённо: {only_remote}")
+        print(f"[РџРћРРЎРљ] hh.ru: '{query}' | СЂРµРіРёРѕРЅ: {area} | СѓРґР°Р»С‘РЅРЅРѕ: {only_remote}")
 
         vacancies = []
 
@@ -203,7 +203,7 @@ class JobSearcher:
                 "area": area,
                 "page": page,
                 "items_on_page": 20,
-                "order_by": "publication_time",  # сначала свежие
+                "order_by": "publication_time",  # СЃРЅР°С‡Р°Р»Р° СЃРІРµР¶РёРµ
             }
             if only_remote:
                 params["schedule"] = "remote"
@@ -214,34 +214,34 @@ class JobSearcher:
 
             soup = BeautifulSoup(response.text, "lxml")
 
-            # hh.ru рендерит карточки с атрибутом data-qa="vacancy-serp__vacancy"
+            # hh.ru СЂРµРЅРґРµСЂРёС‚ РєР°СЂС‚РѕС‡РєРё СЃ Р°С‚СЂРёР±СѓС‚РѕРј data-qa="vacancy-serp__vacancy"
             cards = soup.find_all("div", attrs={"data-qa": "vacancy-serp__vacancy"})
 
             if not cards:
-                print(f"  [СТОП] Страница {page + 1}: карточек не найдено")
+                print(f"  [РЎРўРћРџ] РЎС‚СЂР°РЅРёС†Р° {page + 1}: РєР°СЂС‚РѕС‡РµРє РЅРµ РЅР°Р№РґРµРЅРѕ")
                 break
 
-            print(f"  [СТР {page + 1}] Найдено карточек: {len(cards)}")
+            print(f"  [РЎРўР  {page + 1}] РќР°Р№РґРµРЅРѕ РєР°СЂС‚РѕС‡РµРє: {len(cards)}")
 
             for card in cards:
                 vacancy = self._parse_card(card)
                 if vacancy:
                     vacancies.append(vacancy)
 
-            # Пауза чтобы не триггерить защиту от ботов
+            # РџР°СѓР·Р° С‡С‚РѕР±С‹ РЅРµ С‚СЂРёРіРіРµСЂРёС‚СЊ Р·Р°С‰РёС‚Сѓ РѕС‚ Р±РѕС‚РѕРІ
             time.sleep(1.0)
 
-        print(f"[ИТОГО] '{query}': {len(vacancies)} вакансий")
+        print(f"[РРўРћР“Рћ] '{query}': {len(vacancies)} РІР°РєР°РЅСЃРёР№")
 
         return self._dedup(vacancies)
 
     def _parse_card(self, card) -> Optional[Vacancy]:
         """
-        Парсит одну карточку вакансии из HTML.
-        Структура hh.ru может меняться — код покрывает основные варианты.
+        РџР°СЂСЃРёС‚ РѕРґРЅСѓ РєР°СЂС‚РѕС‡РєСѓ РІР°РєР°РЅСЃРёРё РёР· HTML.
+        РЎС‚СЂСѓРєС‚СѓСЂР° hh.ru РјРѕР¶РµС‚ РјРµРЅСЏС‚СЊСЃСЏ вЂ” РєРѕРґ РїРѕРєСЂС‹РІР°РµС‚ РѕСЃРЅРѕРІРЅС‹Рµ РІР°СЂРёР°РЅС‚С‹.
         """
         try:
-            # Название и ссылка
+            # РќР°Р·РІР°РЅРёРµ Рё СЃСЃС‹Р»РєР°
             title_tag = card.find("a", attrs={"data-qa": "serp-item__title"})
             if not title_tag:
                 return None
@@ -249,31 +249,31 @@ class JobSearcher:
             title = title_tag.get_text(strip=True)
             url = title_tag.get("href", "")
 
-            # Извлекаем ID вакансии из URL
+            # РР·РІР»РµРєР°РµРј ID РІР°РєР°РЅСЃРёРё РёР· URL
             id_match = re.search(r"/vacancy/(\d+)", url)
             if not id_match:
                 return None
             vacancy_id = id_match.group(1)
 
-            # Полный URL (иногда приходит без домена)
+            # РџРѕР»РЅС‹Р№ URL (РёРЅРѕРіРґР° РїСЂРёС…РѕРґРёС‚ Р±РµР· РґРѕРјРµРЅР°)
             if url.startswith("/"):
                 url = f"https://hh.ru{url}"
 
-            # Компания
+            # РљРѕРјРїР°РЅРёСЏ
             company_tag = card.find("a", attrs={"data-qa": "vacancy-serp__vacancy-employer"})
             if not company_tag:
                 company_tag = card.find("span", attrs={"data-qa": "vacancy-serp__vacancy-employer"})
-            company = company_tag.get_text(strip=True) if company_tag else "Не указана"
+            company = company_tag.get_text(strip=True) if company_tag else "РќРµ СѓРєР°Р·Р°РЅР°"
 
-            # Зарплата
+            # Р—Р°СЂРїР»Р°С‚Р°
             salary_from, salary_to, salary_currency = self._parse_salary(card)
 
-            # Локация
+            # Р›РѕРєР°С†РёСЏ
             location_tag = card.find("div", attrs={"data-qa": "vacancy-serp__vacancy-address"})
-            location = location_tag.get_text(strip=True) if location_tag else "Не указано"
+            location = location_tag.get_text(strip=True) if location_tag else "РќРµ СѓРєР°Р·Р°РЅРѕ"
 
-            # Удалённость
-            schedule_tags = card.find_all(string=re.compile(r"удалённ|remote", re.IGNORECASE))
+            # РЈРґР°Р»С‘РЅРЅРѕСЃС‚СЊ
+            schedule_tags = card.find_all(string=re.compile(r"СѓРґР°Р»С‘РЅРЅ|remote", re.IGNORECASE))
             is_remote = len(schedule_tags) > 0
 
             vacancy = Vacancy(
@@ -289,54 +289,54 @@ class JobSearcher:
                 source="hh.ru",
             )
 
-            # Фильтруем явный мусор по названию вакансии
+            # Р¤РёР»СЊС‚СЂСѓРµРј СЏРІРЅС‹Р№ РјСѓСЃРѕСЂ РїРѕ РЅР°Р·РІР°РЅРёСЋ РІР°РєР°РЅСЃРёРё
             title_lower = title.lower()
             if any(kw in title_lower for kw in self.NOISE_TITLE_KEYWORDS):
                 return None
 
-            # Фильтруем Senior/Lead/Ведущий — кандидат джун, такие вакансии не подходят
+            # Р¤РёР»СЊС‚СЂСѓРµРј Senior/Lead/Р’РµРґСѓС‰РёР№ вЂ” РєР°РЅРґРёРґР°С‚ РґР¶СѓРЅ, С‚Р°РєРёРµ РІР°РєР°РЅСЃРёРё РЅРµ РїРѕРґС…РѕРґСЏС‚
             if any(kw in title_lower for kw in self.SENIOR_TITLE_KEYWORDS):
                 return None
 
             return vacancy
 
         except (AttributeError, ValidationError):
-            return None  # тихо пропускаем битые карточки
+            return None  # С‚РёС…Рѕ РїСЂРѕРїСѓСЃРєР°РµРј Р±РёС‚С‹Рµ РєР°СЂС‚РѕС‡РєРё
 
     def _parse_salary(self, card) -> tuple[Optional[int], Optional[int], Optional[str]]:
         """
-        Парсит зарплату из карточки вакансии.
-        Примеры: "от 80 000 RUB", "80 000–120 000 ₽", "до 200 000 руб."
+        РџР°СЂСЃРёС‚ Р·Р°СЂРїР»Р°С‚Сѓ РёР· РєР°СЂС‚РѕС‡РєРё РІР°РєР°РЅСЃРёРё.
+        РџСЂРёРјРµСЂС‹: "РѕС‚ 80 000 RUB", "80 000вЂ“120 000 в‚Ѕ", "РґРѕ 200 000 СЂСѓР±."
 
         Returns:
-            Кортеж (salary_from, salary_to, currency)
+            РљРѕСЂС‚РµР¶ (salary_from, salary_to, currency)
         """
         salary_tag = card.find("span", attrs={"data-qa": "vacancy-serp__vacancy-compensation"})
         if not salary_tag:
             return None, None, None
 
         text = salary_tag.get_text(strip=True)
-        # Убираем неразрывные пробелы и прочий мусор
+        # РЈР±РёСЂР°РµРј РЅРµСЂР°Р·СЂС‹РІРЅС‹Рµ РїСЂРѕР±РµР»С‹ Рё РїСЂРѕС‡РёР№ РјСѓСЃРѕСЂ
         text = text.replace("\xa0", " ").replace(" ", " ").strip()
 
-        # Определяем валюту
+        # РћРїСЂРµРґРµР»СЏРµРј РІР°Р»СЋС‚Сѓ
         currency = "RUB"
-        if "₽" in text or "руб" in text.lower() or "RUB" in text:
+        if "в‚Ѕ" in text or "СЂСѓР±" in text.lower() or "RUB" in text:
             currency = "RUB"
         elif "$" in text or "USD" in text:
             currency = "USD"
-        elif "€" in text or "EUR" in text:
+        elif "в‚¬" in text or "EUR" in text:
             currency = "EUR"
 
-        # Извлекаем числа
+        # РР·РІР»РµРєР°РµРј С‡РёСЃР»Р°
         numbers = re.findall(r"[\d\s]+", text)
         numbers = [int(n.replace(" ", "")) for n in numbers if n.strip()]
 
         salary_from = salary_to = None
 
-        if "от" in text.lower() and numbers:
+        if "РѕС‚" in text.lower() and numbers:
             salary_from = numbers[0]
-        elif "до" in text.lower() and numbers:
+        elif "РґРѕ" in text.lower() and numbers:
             salary_to = numbers[0]
         elif len(numbers) >= 2:
             salary_from, salary_to = numbers[0], numbers[1]
@@ -347,13 +347,13 @@ class JobSearcher:
 
     def get_vacancy_description(self, vacancy_id: str) -> str:
         """
-        Загружает полное описание вакансии по её ID.
-        Результат кэшируется в output/descriptions_cache.json —
-        при повторном анализе HTTP-запрос не делается.
+        Р—Р°РіСЂСѓР¶Р°РµС‚ РїРѕР»РЅРѕРµ РѕРїРёСЃР°РЅРёРµ РІР°РєР°РЅСЃРёРё РїРѕ РµС‘ ID.
+        Р РµР·СѓР»СЊС‚Р°С‚ РєСЌС€РёСЂСѓРµС‚СЃСЏ РІ output/descriptions_cache.json вЂ”
+        РїСЂРё РїРѕРІС‚РѕСЂРЅРѕРј Р°РЅР°Р»РёР·Рµ HTTP-Р·Р°РїСЂРѕСЃ РЅРµ РґРµР»Р°РµС‚СЃСЏ.
         """
-        # Проверяем кэш
+        # РџСЂРѕРІРµСЂСЏРµРј РєСЌС€
         if vacancy_id in self._desc_cache:
-            print(f"  [КЭШ] {vacancy_id} — из кэша")
+            print(f"  [РљР­РЁ] {vacancy_id} вЂ” РёР· РєСЌС€Р°")
             return self._desc_cache[vacancy_id]
 
         url = self.HH_VACANCY_URL.format(vacancy_id)
@@ -363,7 +363,7 @@ class JobSearcher:
 
         soup = BeautifulSoup(response.text, "lxml")
 
-        # Блок с описанием вакансии
+        # Р‘Р»РѕРє СЃ РѕРїРёСЃР°РЅРёРµРј РІР°РєР°РЅСЃРёРё
         desc_block = soup.find("div", attrs={"data-qa": "vacancy-description"})
         if not desc_block:
             desc_block = soup.find("div", class_=re.compile("vacancy-description"))
@@ -372,7 +372,7 @@ class JobSearcher:
         if desc_block:
             description = desc_block.get_text(separator="\n", strip=True)[:4000]
 
-        # Сохраняем в кэш (даже пустое — чтобы не запрашивать снова)
+        # РЎРѕС…СЂР°РЅСЏРµРј РІ РєСЌС€ (РґР°Р¶Рµ РїСѓСЃС‚РѕРµ вЂ” С‡С‚РѕР±С‹ РЅРµ Р·Р°РїСЂР°С€РёРІР°С‚СЊ СЃРЅРѕРІР°)
         self._desc_cache[vacancy_id] = description
         self._save_desc_cache()
 
@@ -380,38 +380,38 @@ class JobSearcher:
 
     def enrich_with_descriptions(self, vacancies: list[Vacancy]) -> list[Vacancy]:
         """
-        Загружает полные описания для каждой вакансии.
-        Нужно перед отправкой на анализ в LLM.
-        Описания берутся из кэша если уже загружались ранее.
+        Р—Р°РіСЂСѓР¶Р°РµС‚ РїРѕР»РЅС‹Рµ РѕРїРёСЃР°РЅРёСЏ РґР»СЏ РєР°Р¶РґРѕР№ РІР°РєР°РЅСЃРёРё.
+        РќСѓР¶РЅРѕ РїРµСЂРµРґ РѕС‚РїСЂР°РІРєРѕР№ РЅР° Р°РЅР°Р»РёР· РІ LLM.
+        РћРїРёСЃР°РЅРёСЏ Р±РµСЂСѓС‚СЃСЏ РёР· РєСЌС€Р° РµСЃР»Рё СѓР¶Рµ Р·Р°РіСЂСѓР¶Р°Р»РёСЃСЊ СЂР°РЅРµРµ.
         """
-        print(f"\n[ЗАГРУЗКА ОПИСАНИЙ] {len(vacancies)} вакансий...")
+        print(f"\n[Р—РђР“Р РЈР—РљРђ РћРџРРЎРђРќРР™] {len(vacancies)} РІР°РєР°РЅСЃРёР№...")
 
         for i, vacancy in enumerate(vacancies, 1):
             if not vacancy.description:
                 desc = self.get_vacancy_description(vacancy.id)
                 vacancy.description = desc
-                status = "OK" if desc else "нет текста"
-                print(f"  [{i}/{len(vacancies)}] {vacancy.title[:40]} — {status}")
-                time.sleep(0.8)  # пауза между запросами (пропускается при кэш-хите)
+                status = "OK" if desc else "РЅРµС‚ С‚РµРєСЃС‚Р°"
+                print(f"  [{i}/{len(vacancies)}] {vacancy.title[:40]} вЂ” {status}")
+                time.sleep(0.8)  # РїР°СѓР·Р° РјРµР¶РґСѓ Р·Р°РїСЂРѕСЃР°РјРё (РїСЂРѕРїСѓСЃРєР°РµС‚СЃСЏ РїСЂРё РєСЌС€-С…РёС‚Рµ)
 
         return vacancies
 
     def search_all_queries(self, enrich: bool = False, include_habr: bool = True) -> list[Vacancy]:
         """
-        Запускает поиск по всем запросам из config.SEARCH_QUERIES.
-        Ищет на hh.ru и (опционально) Habr Career.
-        Автоматически убирает дублирующиеся вакансии (по ID и по title+company).
+        Р—Р°РїСѓСЃРєР°РµС‚ РїРѕРёСЃРє РїРѕ РІСЃРµРј Р·Р°РїСЂРѕСЃР°Рј РёР· config.SEARCH_QUERIES.
+        РС‰РµС‚ РЅР° hh.ru Рё (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ) Habr Career.
+        РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё СѓР±РёСЂР°РµС‚ РґСѓР±Р»РёСЂСѓСЋС‰РёРµСЃСЏ РІР°РєР°РЅСЃРёРё (РїРѕ ID Рё РїРѕ title+company).
         """
         all_vacancies: dict[str, Vacancy] = {}
 
-        # Поиск на hh.ru
+        # РџРѕРёСЃРє РЅР° hh.ru
         for query in config.SEARCH_QUERIES:
             results = self.search_hh(query)
             for v in results:
                 if v.id not in all_vacancies:
                     all_vacancies[v.id] = v
 
-        # Поиск на Habr Career
+        # РџРѕРёСЃРє РЅР° Habr Career
         if include_habr:
             for query in config.SEARCH_QUERIES:
                 results = self.search_habr(query)
@@ -420,7 +420,7 @@ class JobSearcher:
                         all_vacancies[v.id] = v
 
         unique_vacancies = list(all_vacancies.values())
-        print(f"\n[ИТОГО УНИКАЛЬНЫХ] {len(unique_vacancies)} вакансий (hh.ru + Habr Career)")
+        print(f"\n[РРўРћР“Рћ РЈРќРРљРђР›Р¬РќР«РҐ] {len(unique_vacancies)} РІР°РєР°РЅСЃРёР№ (hh.ru + Habr Career)")
 
         if enrich:
             unique_vacancies = self.enrich_with_descriptions(unique_vacancies)
@@ -433,19 +433,19 @@ class JobSearcher:
         pages: int = 2,
     ) -> list[Vacancy]:
         """
-        Ищет вакансии на Habr Career по поисковому запросу.
+        РС‰РµС‚ РІР°РєР°РЅСЃРёРё РЅР° Habr Career РїРѕ РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ.
 
         Args:
-            query: Поисковый запрос (например "AI engineer")
-            pages: Сколько страниц загружать (на каждой ~25 вакансий)
+            query: РџРѕРёСЃРєРѕРІС‹Р№ Р·Р°РїСЂРѕСЃ (РЅР°РїСЂРёРјРµСЂ "AI engineer")
+            pages: РЎРєРѕР»СЊРєРѕ СЃС‚СЂР°РЅРёС† Р·Р°РіСЂСѓР¶Р°С‚СЊ (РЅР° РєР°Р¶РґРѕР№ ~25 РІР°РєР°РЅСЃРёР№)
 
         Returns:
-            Список объектов Vacancy
+            РЎРїРёСЃРѕРє РѕР±СЉРµРєС‚РѕРІ Vacancy
         """
         import urllib3
         urllib3.disable_warnings()
 
-        print(f"[ПОИСК] Habr Career: '{query}'")
+        print(f"[РџРћРРЎРљ] Habr Career: '{query}'")
 
         vacancies = []
 
@@ -466,10 +466,10 @@ class JobSearcher:
             cards = soup.find_all("div", class_="vacancy-card")
 
             if not cards:
-                print(f"  [СТОП] Habr страница {page}: карточек не найдено")
+                print(f"  [РЎРўРћРџ] Habr СЃС‚СЂР°РЅРёС†Р° {page}: РєР°СЂС‚РѕС‡РµРє РЅРµ РЅР°Р№РґРµРЅРѕ")
                 break
 
-            print(f"  [СТР {page}] Habr: найдено карточек: {len(cards)}")
+            print(f"  [РЎРўР  {page}] Habr: РЅР°Р№РґРµРЅРѕ РєР°СЂС‚РѕС‡РµРє: {len(cards)}")
 
             for card in cards:
                 vacancy = self._parse_habr_card(card)
@@ -478,13 +478,13 @@ class JobSearcher:
 
             time.sleep(1.0)
 
-        print(f"[ИТОГО] Habr '{query}': {len(vacancies)} вакансий")
+        print(f"[РРўРћР“Рћ] Habr '{query}': {len(vacancies)} РІР°РєР°РЅСЃРёР№")
         return self._dedup(vacancies)
 
     def _parse_habr_card(self, card) -> Optional[Vacancy]:
-        """Парсит одну карточку вакансии с Habr Career."""
+        """РџР°СЂСЃРёС‚ РѕРґРЅСѓ РєР°СЂС‚РѕС‡РєСѓ РІР°РєР°РЅСЃРёРё СЃ Habr Career."""
         try:
-            # Название и ссылка
+            # РќР°Р·РІР°РЅРёРµ Рё СЃСЃС‹Р»РєР°
             title_tag = card.find("a", class_="vacancy-card__title-link")
             if not title_tag:
                 return None
@@ -494,26 +494,26 @@ class JobSearcher:
             if not path:
                 return None
 
-            # ID из пути /vacancies/1000XXXXXX
+            # ID РёР· РїСѓС‚Рё /vacancies/1000XXXXXX
             id_match = re.search(r"/vacancies/(\d+)", path)
             if not id_match:
                 return None
             vacancy_id = f"habr_{id_match.group(1)}"
             url = f"{self.HABR_BASE_URL}{path}"
 
-            # Компания — убираем emoji и лишние пробелы
+            # РљРѕРјРїР°РЅРёСЏ вЂ” СѓР±РёСЂР°РµРј emoji Рё Р»РёС€РЅРёРµ РїСЂРѕР±РµР»С‹
             comp_tag = card.find("a", class_=lambda x: x and "link-comp" in x)
-            company = re.sub(r"[^\w\s\-\.]", "", comp_tag.get_text(strip=True)).strip() if comp_tag else "Не указана"
+            company = re.sub(r"[^\w\s\-\.]", "", comp_tag.get_text(strip=True)).strip() if comp_tag else "РќРµ СѓРєР°Р·Р°РЅР°"
 
-            # Зарплата
+            # Р—Р°СЂРїР»Р°С‚Р°
             salary_from, salary_to, salary_currency = self._parse_habr_salary(card)
 
-            # Мета: уровень, удалённость
+            # РњРµС‚Р°: СѓСЂРѕРІРµРЅСЊ, СѓРґР°Р»С‘РЅРЅРѕСЃС‚СЊ
             meta_tag = card.find("div", class_=re.compile(r"vacancy-card__meta"))
             meta_text = meta_tag.get_text(" ", strip=True).lower() if meta_tag else ""
-            is_remote = "удалённо" in meta_text or "remote" in meta_text
+            is_remote = "СѓРґР°Р»С‘РЅРЅРѕ" in meta_text or "remote" in meta_text
 
-            # Дата публикации
+            # Р”Р°С‚Р° РїСѓР±Р»РёРєР°С†РёРё
             date_tag = card.find("time")
             published_at = date_tag.get("datetime", "") if date_tag else ""
 
@@ -525,13 +525,13 @@ class JobSearcher:
                 salary_from=salary_from,
                 salary_to=salary_to,
                 salary_currency=salary_currency,
-                location="Удалённо" if is_remote else "Не указано",
+                location="РЈРґР°Р»С‘РЅРЅРѕ" if is_remote else "РќРµ СѓРєР°Р·Р°РЅРѕ",
                 remote=is_remote,
                 published_at=published_at,
                 source="habr.career",
             )
 
-            # Те же фильтры что и для hh.ru
+            # РўРµ Р¶Рµ С„РёР»СЊС‚СЂС‹ С‡С‚Рѕ Рё РґР»СЏ hh.ru
             title_lower = title.lower()
             if any(kw in title_lower for kw in self.NOISE_TITLE_KEYWORDS):
                 return None
@@ -545,8 +545,8 @@ class JobSearcher:
 
     def _parse_habr_salary(self, card) -> tuple[Optional[int], Optional[int], Optional[str]]:
         """
-        Парсит зарплату из карточки Habr Career.
-        Примеры: "от 4000 до 6000 $", "от 150 000 ₽", "200 000 – 300 000 ₽"
+        РџР°СЂСЃРёС‚ Р·Р°СЂРїР»Р°С‚Сѓ РёР· РєР°СЂС‚РѕС‡РєРё Habr Career.
+        РџСЂРёРјРµСЂС‹: "РѕС‚ 4000 РґРѕ 6000 $", "РѕС‚ 150 000 в‚Ѕ", "200 000 вЂ“ 300 000 в‚Ѕ"
         """
         sal_tag = card.find(class_=re.compile(r"salary"))
         if not sal_tag:
@@ -554,10 +554,10 @@ class JobSearcher:
 
         text = sal_tag.get_text(strip=True).replace("\xa0", " ").replace(" ", " ")
 
-        # Валюта
+        # Р’Р°Р»СЋС‚Р°
         if "$" in text or "USD" in text:
             currency = "USD"
-        elif "€" in text or "EUR" in text:
+        elif "в‚¬" in text or "EUR" in text:
             currency = "EUR"
         else:
             currency = "RUB"
@@ -565,11 +565,11 @@ class JobSearcher:
         numbers = [int(n.replace(" ", "")) for n in re.findall(r"[\d][\d ]+", text) if n.strip()]
 
         salary_from = salary_to = None
-        if "от" in text.lower() and "до" in text.lower() and len(numbers) >= 2:
+        if "РѕС‚" in text.lower() and "РґРѕ" in text.lower() and len(numbers) >= 2:
             salary_from, salary_to = numbers[0], numbers[1]
-        elif "от" in text.lower() and numbers:
+        elif "РѕС‚" in text.lower() and numbers:
             salary_from = numbers[0]
-        elif "до" in text.lower() and numbers:
+        elif "РґРѕ" in text.lower() and numbers:
             salary_to = numbers[0]
         elif len(numbers) >= 2:
             salary_from, salary_to = numbers[0], numbers[1]
@@ -580,24 +580,24 @@ class JobSearcher:
 
     def _dedup(self, vacancies: list[Vacancy]) -> list[Vacancy]:
         """
-        Дедупликация вакансий по двум критериям:
-        1. По vacancy_id (одна вакансия на нескольких страницах)
-        2. По нормализованной паре (title, company) — одна вакансия с разных источников
+        Р”РµРґСѓРїР»РёРєР°С†РёСЏ РІР°РєР°РЅСЃРёР№ РїРѕ РґРІСѓРј РєСЂРёС‚РµСЂРёСЏРј:
+        1. РџРѕ vacancy_id (РѕРґРЅР° РІР°РєР°РЅСЃРёСЏ РЅР° РЅРµСЃРєРѕР»СЊРєРёС… СЃС‚СЂР°РЅРёС†Р°С…)
+        2. РџРѕ РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅРѕР№ РїР°СЂРµ (title, company) вЂ” РѕРґРЅР° РІР°РєР°РЅСЃРёСЏ СЃ СЂР°Р·РЅС‹С… РёСЃС‚РѕС‡РЅРёРєРѕРІ
         """
         seen_ids: dict[str, Vacancy] = {}
         seen_pairs: set[tuple[str, str]] = set()
         result = []
 
         for v in vacancies:
-            # Нормализуем для сравнения: нижний регистр, убираем пробелы
+            # РќРѕСЂРјР°Р»РёР·СѓРµРј РґР»СЏ СЃСЂР°РІРЅРµРЅРёСЏ: РЅРёР¶РЅРёР№ СЂРµРіРёСЃС‚СЂ, СѓР±РёСЂР°РµРј РїСЂРѕР±РµР»С‹
             norm_title   = re.sub(r"\s+", " ", v.title.lower().strip())
             norm_company = re.sub(r"\s+", " ", v.company.lower().strip())
             pair = (norm_title, norm_company)
 
             if v.id in seen_ids:
-                continue  # дубль по ID
+                continue  # РґСѓР±Р»СЊ РїРѕ ID
             if pair in seen_pairs:
-                continue  # дубль по названию+компании
+                continue  # РґСѓР±Р»СЊ РїРѕ РЅР°Р·РІР°РЅРёСЋ+РєРѕРјРїР°РЅРёРё
 
             seen_ids[v.id] = v
             seen_pairs.add(pair)
@@ -605,12 +605,12 @@ class JobSearcher:
 
         removed = len(vacancies) - len(result)
         if removed:
-            print(f"[ДЕДУПЛИКАЦИЯ] Убрано дублей: {removed}")
+            print(f"[Р”Р•Р”РЈРџР›РРљРђР¦РРЇ] РЈР±СЂР°РЅРѕ РґСѓР±Р»РµР№: {removed}")
         return result
 
     def save_to_json(self, vacancies: list[Vacancy], filename: Optional[str] = None) -> Path:
         """
-        Сохраняет найденные вакансии в JSON-файл в папке output/.
+        РЎРѕС…СЂР°РЅСЏРµС‚ РЅР°Р№РґРµРЅРЅС‹Рµ РІР°РєР°РЅСЃРёРё РІ JSON-С„Р°Р№Р» РІ РїР°РїРєРµ output/.
         """
         if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -628,11 +628,11 @@ class JobSearcher:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        print(f"[СОХРАНЕНО] {output_path}")
+        print(f"[РЎРћРҐР РђРќР•РќРћ] {output_path}")
         return output_path
 
 
-# ─── Запуск для тестирования ──────────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ Р—Р°РїСѓСЃРє РґР»СЏ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 if __name__ == "__main__":
     searcher = JobSearcher()
@@ -644,17 +644,17 @@ if __name__ == "__main__":
         pages=1,
     )
 
-    print(f"\n--- Первые 5 вакансий ---")
+    print(f"\n--- РџРµСЂРІС‹Рµ 5 РІР°РєР°РЅСЃРёР№ ---")
     for v in vacancies[:5]:
-        print(f"\n  Компания : {v.company}")
-        print(f"  Должность: {v.title}")
-        print(f"  Зарплата : {v.salary_str()}")
-        print(f"  Локация  : {v.location} {'(удалённо)' if v.remote else ''}")
-        print(f"  Ссылка   : {v.url}")
+        print(f"\n  РљРѕРјРїР°РЅРёСЏ : {v.company}")
+        print(f"  Р”РѕР»Р¶РЅРѕСЃС‚СЊ: {v.title}")
+        print(f"  Р—Р°СЂРїР»Р°С‚Р° : {v.salary_str()}")
+        print(f"  Р›РѕРєР°С†РёСЏ  : {v.location} {'(СѓРґР°Р»С‘РЅРЅРѕ)' if v.remote else ''}")
+        print(f"  РЎСЃС‹Р»РєР°   : {v.url}")
 
     if vacancies:
         path = searcher.save_to_json(vacancies, "test_search.json")
-        print(f"\nФайл сохранён: {path}")
+        print(f"\nР¤Р°Р№Р» СЃРѕС…СЂР°РЅС‘РЅ: {path}")
 
 
 import re
@@ -670,10 +670,10 @@ from pydantic import BaseModel, ValidationError
 import config
 
 
-# ─── Модель вакансии (Pydantic) ───────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ РњРѕРґРµР»СЊ РІР°РєР°РЅСЃРёРё (Pydantic) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 class Vacancy(BaseModel):
-    """Структура одной вакансии после парсинга."""
+    """РЎС‚СЂСѓРєС‚СѓСЂР° РѕРґРЅРѕР№ РІР°РєР°РЅСЃРёРё РїРѕСЃР»Рµ РїР°СЂСЃРёРЅРіР°."""
 
     id: str
     title: str
@@ -682,7 +682,7 @@ class Vacancy(BaseModel):
     salary_from: Optional[int] = None
     salary_to: Optional[int] = None
     salary_currency: Optional[str] = None
-    location: str = "Не указано"
+    location: str = "РќРµ СѓРєР°Р·Р°РЅРѕ"
     remote: bool = False
     description: str = ""
     requirements: str = ""
@@ -690,22 +690,22 @@ class Vacancy(BaseModel):
     source: str = "hh.ru"
 
     def salary_str(self) -> str:
-        """Возвращает зарплату в читаемом виде."""
+        """Р’РѕР·РІСЂР°С‰Р°РµС‚ Р·Р°СЂРїР»Р°С‚Сѓ РІ С‡РёС‚Р°РµРјРѕРј РІРёРґРµ."""
         if self.salary_from and self.salary_to:
-            return f"{self.salary_from:,}–{self.salary_to:,} {self.salary_currency or 'RUB'}"
+            return f"{self.salary_from:,}вЂ“{self.salary_to:,} {self.salary_currency or 'RUB'}"
         elif self.salary_from:
-            return f"от {self.salary_from:,} {self.salary_currency or 'RUB'}"
+            return f"РѕС‚ {self.salary_from:,} {self.salary_currency or 'RUB'}"
         elif self.salary_to:
-            return f"до {self.salary_to:,} {self.salary_currency or 'RUB'}"
-        return "не указана"
+            return f"РґРѕ {self.salary_to:,} {self.salary_currency or 'RUB'}"
+        return "РЅРµ СѓРєР°Р·Р°РЅР°"
 
 
-# ─── Основной класс поисковика ────────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ РћСЃРЅРѕРІРЅРѕР№ РєР»Р°СЃСЃ РїРѕРёСЃРєРѕРІРёРєР° в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 class JobSearcher:
     """
-    Ищет вакансии на hh.ru и Habr Career через парсинг HTML.
-    Представляется как обычный браузер.
+    РС‰РµС‚ РІР°РєР°РЅСЃРёРё РЅР° hh.ru Рё Habr Career С‡РµСЂРµР· РїР°СЂСЃРёРЅРі HTML.
+    РџСЂРµРґСЃС‚Р°РІР»СЏРµС‚СЃСЏ РєР°Рє РѕР±С‹С‡РЅС‹Р№ Р±СЂР°СѓР·РµСЂ.
     """
 
     HH_SEARCH_URL = "https://hh.ru/search/vacancy"
@@ -714,19 +714,19 @@ class JobSearcher:
     HABR_SEARCH_URL = "https://career.habr.com/vacancies"
     HABR_BASE_URL   = "https://career.habr.com"
 
-    # Слова в названии вакансии, которые точно не AI/prompt — фильтруем как мусор
-    # Возникают когда hh.ru находит слово "промт" в названии компании (напр. Промтрейдсервис)
+    # РЎР»РѕРІР° РІ РЅР°Р·РІР°РЅРёРё РІР°РєР°РЅСЃРёРё, РєРѕС‚РѕСЂС‹Рµ С‚РѕС‡РЅРѕ РЅРµ AI/prompt вЂ” С„РёР»СЊС‚СЂСѓРµРј РєР°Рє РјСѓСЃРѕСЂ
+    # Р’РѕР·РЅРёРєР°СЋС‚ РєРѕРіРґР° hh.ru РЅР°С…РѕРґРёС‚ СЃР»РѕРІРѕ "РїСЂРѕРјС‚" РІ РЅР°Р·РІР°РЅРёРё РєРѕРјРїР°РЅРёРё (РЅР°РїСЂ. РџСЂРѕРјС‚СЂРµР№РґСЃРµСЂРІРёСЃ)
     NOISE_TITLE_KEYWORDS = [
-        "менеджер отдела продаж", "тендерный специалист", "бухгалтер",
-        "водитель", "кладовщик", "сварщик", "охранник", "продавец",
-        "юрист", "экономист", "логист", "секретарь",
-        "графический дизайнер", "graphic designer",
+        "РјРµРЅРµРґР¶РµСЂ РѕС‚РґРµР»Р° РїСЂРѕРґР°Р¶", "С‚РµРЅРґРµСЂРЅС‹Р№ СЃРїРµС†РёР°Р»РёСЃС‚", "Р±СѓС…РіР°Р»С‚РµСЂ",
+        "РІРѕРґРёС‚РµР»СЊ", "РєР»Р°РґРѕРІС‰РёРє", "СЃРІР°СЂС‰РёРє", "РѕС…СЂР°РЅРЅРёРє", "РїСЂРѕРґР°РІРµС†",
+        "СЋСЂРёСЃС‚", "СЌРєРѕРЅРѕРјРёСЃС‚", "Р»РѕРіРёСЃС‚", "СЃРµРєСЂРµС‚Р°СЂСЊ",
+        "РіСЂР°С„РёС‡РµСЃРєРёР№ РґРёР·Р°Р№РЅРµСЂ", "graphic designer",
     ]
 
-    # Слова в названии, указывающие на уровень выше джуна — отсекаем до анализа
+    # РЎР»РѕРІР° РІ РЅР°Р·РІР°РЅРёРё, СѓРєР°Р·С‹РІР°СЋС‰РёРµ РЅР° СѓСЂРѕРІРµРЅСЊ РІС‹С€Рµ РґР¶СѓРЅР° вЂ” РѕС‚СЃРµРєР°РµРј РґРѕ Р°РЅР°Р»РёР·Р°
     SENIOR_TITLE_KEYWORDS = [
-        "senior", "ведущий", "lead", "team lead", "teamlead",
-        "principal", "staff ", "архитектор",
+        "senior", "РІРµРґСѓС‰РёР№", "lead", "team lead", "teamlead",
+        "principal", "staff ", "Р°СЂС…РёС‚РµРєС‚РѕСЂ",
     ]
 
     HEADERS = {
@@ -741,7 +741,7 @@ class JobSearcher:
         "Connection": "keep-alive",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.session = requests.Session()
         self.session.headers.update(self.HEADERS)
 
@@ -753,18 +753,18 @@ class JobSearcher:
         pages: int = 2,
     ) -> list[Vacancy]:
         """
-        Ищет вакансии на hh.ru по поисковому запросу.
+        РС‰РµС‚ РІР°РєР°РЅСЃРёРё РЅР° hh.ru РїРѕ РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ.
 
         Args:
-            query: Поисковый запрос (например "prompt engineer")
-            area: Регион (113 = вся Россия, 1 = Москва, 2 = СПб)
-            only_remote: Только удалённая работа
-            pages: Сколько страниц загружать (на каждой ~20 вакансий)
+            query: РџРѕРёСЃРєРѕРІС‹Р№ Р·Р°РїСЂРѕСЃ (РЅР°РїСЂРёРјРµСЂ "prompt engineer")
+            area: Р РµРіРёРѕРЅ (113 = РІСЃСЏ Р РѕСЃСЃРёСЏ, 1 = РњРѕСЃРєРІР°, 2 = РЎРџР±)
+            only_remote: РўРѕР»СЊРєРѕ СѓРґР°Р»С‘РЅРЅР°СЏ СЂР°Р±РѕС‚Р°
+            pages: РЎРєРѕР»СЊРєРѕ СЃС‚СЂР°РЅРёС† Р·Р°РіСЂСѓР¶Р°С‚СЊ (РЅР° РєР°Р¶РґРѕР№ ~20 РІР°РєР°РЅСЃРёР№)
 
         Returns:
-            Список объектов Vacancy
+            РЎРїРёСЃРѕРє РѕР±СЉРµРєС‚РѕРІ Vacancy
         """
-        print(f"[ПОИСК] hh.ru: '{query}' | регион: {area} | удалённо: {only_remote}")
+        print(f"[РџРћРРЎРљ] hh.ru: '{query}' | СЂРµРіРёРѕРЅ: {area} | СѓРґР°Р»С‘РЅРЅРѕ: {only_remote}")
 
         vacancies = []
 
@@ -774,7 +774,7 @@ class JobSearcher:
                 "area": area,
                 "page": page,
                 "items_on_page": 20,
-                "order_by": "publication_time",  # сначала свежие
+                "order_by": "publication_time",  # СЃРЅР°С‡Р°Р»Р° СЃРІРµР¶РёРµ
             }
             if only_remote:
                 params["schedule"] = "remote"
@@ -783,47 +783,47 @@ class JobSearcher:
                 response = self.session.get(self.HH_SEARCH_URL, params=params, timeout=15)
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
-                print(f"  [ОШИБКА] Страница {page}: {e}")
+                print(f"  [РћРЁРР‘РљРђ] РЎС‚СЂР°РЅРёС†Р° {page}: {e}")
                 break
 
             soup = BeautifulSoup(response.text, "lxml")
 
-            # hh.ru рендерит карточки с атрибутом data-qa="vacancy-serp__vacancy"
+            # hh.ru СЂРµРЅРґРµСЂРёС‚ РєР°СЂС‚РѕС‡РєРё СЃ Р°С‚СЂРёР±СѓС‚РѕРј data-qa="vacancy-serp__vacancy"
             cards = soup.find_all("div", attrs={"data-qa": "vacancy-serp__vacancy"})
 
             if not cards:
-                print(f"  [СТОП] Страница {page + 1}: карточек не найдено")
+                print(f"  [РЎРўРћРџ] РЎС‚СЂР°РЅРёС†Р° {page + 1}: РєР°СЂС‚РѕС‡РµРє РЅРµ РЅР°Р№РґРµРЅРѕ")
                 break
 
-            print(f"  [СТР {page + 1}] Найдено карточек: {len(cards)}")
+            print(f"  [РЎРўР  {page + 1}] РќР°Р№РґРµРЅРѕ РєР°СЂС‚РѕС‡РµРє: {len(cards)}")
 
             for card in cards:
                 vacancy = self._parse_card(card)
                 if vacancy:
                     vacancies.append(vacancy)
 
-            # Пауза чтобы не триггерить защиту от ботов
+            # РџР°СѓР·Р° С‡С‚РѕР±С‹ РЅРµ С‚СЂРёРіРіРµСЂРёС‚СЊ Р·Р°С‰РёС‚Сѓ РѕС‚ Р±РѕС‚РѕРІ
             time.sleep(1.0)
 
-        print(f"[ИТОГО] '{query}': {len(vacancies)} вакансий")
+        print(f"[РРўРћР“Рћ] '{query}': {len(vacancies)} РІР°РєР°РЅСЃРёР№")
 
-        # Дедупликация по vacancy_id (одна вакансия может появиться на нескольких страницах)
+        # Р”РµРґСѓРїР»РёРєР°С†РёСЏ РїРѕ vacancy_id (РѕРґРЅР° РІР°РєР°РЅСЃРёСЏ РјРѕР¶РµС‚ РїРѕСЏРІРёС‚СЊСЃСЏ РЅР° РЅРµСЃРєРѕР»СЊРєРёС… СЃС‚СЂР°РЅРёС†Р°С…)
         seen: dict[str, Vacancy] = {}
         for v in vacancies:
             if v.id not in seen:
                 seen[v.id] = v
         unique = list(seen.values())
         if len(unique) < len(vacancies):
-            print(f"[ДЕДУПЛИКАЦИЯ] Убрано дублей: {len(vacancies) - len(unique)}")
+            print(f"[Р”Р•Р”РЈРџР›РРљРђР¦РРЇ] РЈР±СЂР°РЅРѕ РґСѓР±Р»РµР№: {len(vacancies) - len(unique)}")
         return unique
 
     def _parse_card(self, card) -> Optional[Vacancy]:
         """
-        Парсит одну карточку вакансии из HTML.
-        Структура hh.ru может меняться — код покрывает основные варианты.
+        РџР°СЂСЃРёС‚ РѕРґРЅСѓ РєР°СЂС‚РѕС‡РєСѓ РІР°РєР°РЅСЃРёРё РёР· HTML.
+        РЎС‚СЂСѓРєС‚СѓСЂР° hh.ru РјРѕР¶РµС‚ РјРµРЅСЏС‚СЊСЃСЏ вЂ” РєРѕРґ РїРѕРєСЂС‹РІР°РµС‚ РѕСЃРЅРѕРІРЅС‹Рµ РІР°СЂРёР°РЅС‚С‹.
         """
         try:
-            # Название и ссылка
+            # РќР°Р·РІР°РЅРёРµ Рё СЃСЃС‹Р»РєР°
             title_tag = card.find("a", attrs={"data-qa": "serp-item__title"})
             if not title_tag:
                 return None
@@ -831,31 +831,31 @@ class JobSearcher:
             title = title_tag.get_text(strip=True)
             url = title_tag.get("href", "")
 
-            # Извлекаем ID вакансии из URL
+            # РР·РІР»РµРєР°РµРј ID РІР°РєР°РЅСЃРёРё РёР· URL
             id_match = re.search(r"/vacancy/(\d+)", url)
             if not id_match:
                 return None
             vacancy_id = id_match.group(1)
 
-            # Полный URL (иногда приходит без домена)
+            # РџРѕР»РЅС‹Р№ URL (РёРЅРѕРіРґР° РїСЂРёС…РѕРґРёС‚ Р±РµР· РґРѕРјРµРЅР°)
             if url.startswith("/"):
                 url = f"https://hh.ru{url}"
 
-            # Компания
+            # РљРѕРјРїР°РЅРёСЏ
             company_tag = card.find("a", attrs={"data-qa": "vacancy-serp__vacancy-employer"})
             if not company_tag:
                 company_tag = card.find("span", attrs={"data-qa": "vacancy-serp__vacancy-employer"})
-            company = company_tag.get_text(strip=True) if company_tag else "Не указана"
+            company = company_tag.get_text(strip=True) if company_tag else "РќРµ СѓРєР°Р·Р°РЅР°"
 
-            # Зарплата
+            # Р—Р°СЂРїР»Р°С‚Р°
             salary_from, salary_to, salary_currency = self._parse_salary(card)
 
-            # Локация
+            # Р›РѕРєР°С†РёСЏ
             location_tag = card.find("div", attrs={"data-qa": "vacancy-serp__vacancy-address"})
-            location = location_tag.get_text(strip=True) if location_tag else "Не указано"
+            location = location_tag.get_text(strip=True) if location_tag else "РќРµ СѓРєР°Р·Р°РЅРѕ"
 
-            # Удалённость
-            schedule_tags = card.find_all(string=re.compile(r"удалённ|remote", re.IGNORECASE))
+            # РЈРґР°Р»С‘РЅРЅРѕСЃС‚СЊ
+            schedule_tags = card.find_all(string=re.compile(r"СѓРґР°Р»С‘РЅРЅ|remote", re.IGNORECASE))
             is_remote = len(schedule_tags) > 0
 
             vacancy = Vacancy(
@@ -871,54 +871,54 @@ class JobSearcher:
                 source="hh.ru",
             )
 
-            # Фильтруем явный мусор по названию вакансии
+            # Р¤РёР»СЊС‚СЂСѓРµРј СЏРІРЅС‹Р№ РјСѓСЃРѕСЂ РїРѕ РЅР°Р·РІР°РЅРёСЋ РІР°РєР°РЅСЃРёРё
             title_lower = title.lower()
             if any(kw in title_lower for kw in self.NOISE_TITLE_KEYWORDS):
                 return None
 
-            # Фильтруем Senior/Lead/Ведущий — кандидат джун, такие вакансии не подходят
+            # Р¤РёР»СЊС‚СЂСѓРµРј Senior/Lead/Р’РµРґСѓС‰РёР№ вЂ” РєР°РЅРґРёРґР°С‚ РґР¶СѓРЅ, С‚Р°РєРёРµ РІР°РєР°РЅСЃРёРё РЅРµ РїРѕРґС…РѕРґСЏС‚
             if any(kw in title_lower for kw in self.SENIOR_TITLE_KEYWORDS):
                 return None
 
             return vacancy
 
         except (AttributeError, ValidationError) as e:
-            return None  # тихо пропускаем битые карточки
+            return None  # С‚РёС…Рѕ РїСЂРѕРїСѓСЃРєР°РµРј Р±РёС‚С‹Рµ РєР°СЂС‚РѕС‡РєРё
 
     def _parse_salary(self, card) -> tuple[Optional[int], Optional[int], Optional[str]]:
         """
-        Парсит зарплату из карточки вакансии.
-        Примеры: "от 80 000 RUB", "80 000–120 000 ₽", "до 200 000 руб."
+        РџР°СЂСЃРёС‚ Р·Р°СЂРїР»Р°С‚Сѓ РёР· РєР°СЂС‚РѕС‡РєРё РІР°РєР°РЅСЃРёРё.
+        РџСЂРёРјРµСЂС‹: "РѕС‚ 80 000 RUB", "80 000вЂ“120 000 в‚Ѕ", "РґРѕ 200 000 СЂСѓР±."
 
         Returns:
-            Кортеж (salary_from, salary_to, currency)
+            РљРѕСЂС‚РµР¶ (salary_from, salary_to, currency)
         """
         salary_tag = card.find("span", attrs={"data-qa": "vacancy-serp__vacancy-compensation"})
         if not salary_tag:
             return None, None, None
 
         text = salary_tag.get_text(strip=True)
-        # Убираем неразрывные пробелы и прочий мусор
+        # РЈР±РёСЂР°РµРј РЅРµСЂР°Р·СЂС‹РІРЅС‹Рµ РїСЂРѕР±РµР»С‹ Рё РїСЂРѕС‡РёР№ РјСѓСЃРѕСЂ
         text = text.replace("\xa0", " ").replace(" ", " ").strip()
 
-        # Определяем валюту
+        # РћРїСЂРµРґРµР»СЏРµРј РІР°Р»СЋС‚Сѓ
         currency = "RUB"
-        if "₽" in text or "руб" in text.lower() or "RUB" in text:
+        if "в‚Ѕ" in text or "СЂСѓР±" in text.lower() or "RUB" in text:
             currency = "RUB"
         elif "$" in text or "USD" in text:
             currency = "USD"
-        elif "€" in text or "EUR" in text:
+        elif "в‚¬" in text or "EUR" in text:
             currency = "EUR"
 
-        # Извлекаем числа
+        # РР·РІР»РµРєР°РµРј С‡РёСЃР»Р°
         numbers = re.findall(r"[\d\s]+", text)
         numbers = [int(n.replace(" ", "")) for n in numbers if n.strip()]
 
         salary_from = salary_to = None
 
-        if "от" in text.lower() and numbers:
+        if "РѕС‚" in text.lower() and numbers:
             salary_from = numbers[0]
-        elif "до" in text.lower() and numbers:
+        elif "РґРѕ" in text.lower() and numbers:
             salary_to = numbers[0]
         elif len(numbers) >= 2:
             salary_from, salary_to = numbers[0], numbers[1]
@@ -929,23 +929,23 @@ class JobSearcher:
 
     def get_vacancy_description(self, vacancy_id: str) -> str:
         """
-        Загружает полное описание вакансии по её ID.
-        Используется для детального анализа через Gemini.
+        Р—Р°РіСЂСѓР¶Р°РµС‚ РїРѕР»РЅРѕРµ РѕРїРёСЃР°РЅРёРµ РІР°РєР°РЅСЃРёРё РїРѕ РµС‘ ID.
+        РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РґР»СЏ РґРµС‚Р°Р»СЊРЅРѕРіРѕ Р°РЅР°Р»РёР·Р° С‡РµСЂРµР· Gemini.
         """
         url = self.HH_VACANCY_URL.format(vacancy_id)
         try:
             response = self.session.get(url, timeout=15)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            print(f"  [ОШИБКА] Описание {vacancy_id}: {e}")
+            print(f"  [РћРЁРР‘РљРђ] РћРїРёСЃР°РЅРёРµ {vacancy_id}: {e}")
             return ""
 
         soup = BeautifulSoup(response.text, "lxml")
 
-        # Блок с описанием вакансии
+        # Р‘Р»РѕРє СЃ РѕРїРёСЃР°РЅРёРµРј РІР°РєР°РЅСЃРёРё
         desc_block = soup.find("div", attrs={"data-qa": "vacancy-description"})
         if not desc_block:
-            # Запасной вариант
+            # Р—Р°РїР°СЃРЅРѕР№ РІР°СЂРёР°РЅС‚
             desc_block = soup.find("div", class_=re.compile("vacancy-description"))
 
         if desc_block:
@@ -955,41 +955,41 @@ class JobSearcher:
 
     def enrich_with_descriptions(self, vacancies: list[Vacancy]) -> list[Vacancy]:
         """
-        Загружает полные описания для каждой вакансии.
-        Нужно перед отправкой на анализ в Gemini.
+        Р—Р°РіСЂСѓР¶Р°РµС‚ РїРѕР»РЅС‹Рµ РѕРїРёСЃР°РЅРёСЏ РґР»СЏ РєР°Р¶РґРѕР№ РІР°РєР°РЅСЃРёРё.
+        РќСѓР¶РЅРѕ РїРµСЂРµРґ РѕС‚РїСЂР°РІРєРѕР№ РЅР° Р°РЅР°Р»РёР· РІ Gemini.
         """
-        print(f"\n[ЗАГРУЗКА ОПИСАНИЙ] {len(vacancies)} вакансий...")
+        print(f"\n[Р—РђР“Р РЈР—РљРђ РћРџРРЎРђРќРР™] {len(vacancies)} РІР°РєР°РЅСЃРёР№...")
 
         for i, vacancy in enumerate(vacancies, 1):
             if not vacancy.description:
                 desc = self.get_vacancy_description(vacancy.id)
                 vacancy.description = desc
-                status = "OK" if desc else "нет текста"
-                print(f"  [{i}/{len(vacancies)}] {vacancy.title[:40]} — {status}")
-                time.sleep(0.8)  # пауза между запросами
+                status = "OK" if desc else "РЅРµС‚ С‚РµРєСЃС‚Р°"
+                print(f"  [{i}/{len(vacancies)}] {vacancy.title[:40]} вЂ” {status}")
+                time.sleep(0.8)  # РїР°СѓР·Р° РјРµР¶РґСѓ Р·Р°РїСЂРѕСЃР°РјРё
 
         return vacancies
 
     def search_all_queries(self, enrich: bool = False, include_habr: bool = True) -> list[Vacancy]:
         """
-        Запускает поиск по всем запросам из config.SEARCH_QUERIES.
-        Ищет на hh.ru и (опционально) Habr Career.
-        Автоматически убирает дублирующиеся вакансии.
+        Р—Р°РїСѓСЃРєР°РµС‚ РїРѕРёСЃРє РїРѕ РІСЃРµРј Р·Р°РїСЂРѕСЃР°Рј РёР· config.SEARCH_QUERIES.
+        РС‰РµС‚ РЅР° hh.ru Рё (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ) Habr Career.
+        РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё СѓР±РёСЂР°РµС‚ РґСѓР±Р»РёСЂСѓСЋС‰РёРµСЃСЏ РІР°РєР°РЅСЃРёРё.
 
         Args:
-            enrich: Загружать ли полные описания (нужно для анализа через LLM)
-            include_habr: Искать ли также на Habr Career
+            enrich: Р—Р°РіСЂСѓР¶Р°С‚СЊ Р»Рё РїРѕР»РЅС‹Рµ РѕРїРёСЃР°РЅРёСЏ (РЅСѓР¶РЅРѕ РґР»СЏ Р°РЅР°Р»РёР·Р° С‡РµСЂРµР· LLM)
+            include_habr: РСЃРєР°С‚СЊ Р»Рё С‚Р°РєР¶Рµ РЅР° Habr Career
         """
         all_vacancies: dict[str, Vacancy] = {}
 
-        # Поиск на hh.ru
+        # РџРѕРёСЃРє РЅР° hh.ru
         for query in config.SEARCH_QUERIES:
             results = self.search_hh(query)
             for v in results:
                 if v.id not in all_vacancies:
                     all_vacancies[v.id] = v
 
-        # Поиск на Habr Career
+        # РџРѕРёСЃРє РЅР° Habr Career
         if include_habr:
             for query in config.SEARCH_QUERIES:
                 results = self.search_habr(query)
@@ -998,7 +998,7 @@ class JobSearcher:
                         all_vacancies[v.id] = v
 
         unique_vacancies = list(all_vacancies.values())
-        print(f"\n[ИТОГО УНИКАЛЬНЫХ] {len(unique_vacancies)} вакансий (hh.ru + Habr Career)")
+        print(f"\n[РРўРћР“Рћ РЈРќРРљРђР›Р¬РќР«РҐ] {len(unique_vacancies)} РІР°РєР°РЅСЃРёР№ (hh.ru + Habr Career)")
 
         if enrich:
             unique_vacancies = self.enrich_with_descriptions(unique_vacancies)
@@ -1011,19 +1011,19 @@ class JobSearcher:
         pages: int = 2,
     ) -> list[Vacancy]:
         """
-        Ищет вакансии на Habr Career по поисковому запросу.
+        РС‰РµС‚ РІР°РєР°РЅСЃРёРё РЅР° Habr Career РїРѕ РїРѕРёСЃРєРѕРІРѕРјСѓ Р·Р°РїСЂРѕСЃСѓ.
 
         Args:
-            query: Поисковый запрос (например "AI engineer")
-            pages: Сколько страниц загружать (на каждой ~25 вакансий)
+            query: РџРѕРёСЃРєРѕРІС‹Р№ Р·Р°РїСЂРѕСЃ (РЅР°РїСЂРёРјРµСЂ "AI engineer")
+            pages: РЎРєРѕР»СЊРєРѕ СЃС‚СЂР°РЅРёС† Р·Р°РіСЂСѓР¶Р°С‚СЊ (РЅР° РєР°Р¶РґРѕР№ ~25 РІР°РєР°РЅСЃРёР№)
 
         Returns:
-            Список объектов Vacancy
+            РЎРїРёСЃРѕРє РѕР±СЉРµРєС‚РѕРІ Vacancy
         """
         import urllib3
         urllib3.disable_warnings()
 
-        print(f"[ПОИСК] Habr Career: '{query}'")
+        print(f"[РџРћРРЎРљ] Habr Career: '{query}'")
 
         vacancies = []
 
@@ -1043,17 +1043,17 @@ class JobSearcher:
                 )
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
-                print(f"  [ОШИБКА] Habr страница {page}: {e}")
+                print(f"  [РћРЁРР‘РљРђ] Habr СЃС‚СЂР°РЅРёС†Р° {page}: {e}")
                 break
 
             soup = BeautifulSoup(response.text, "lxml")
             cards = soup.find_all("div", class_="vacancy-card")
 
             if not cards:
-                print(f"  [СТОП] Habr страница {page}: карточек не найдено")
+                print(f"  [РЎРўРћРџ] Habr СЃС‚СЂР°РЅРёС†Р° {page}: РєР°СЂС‚РѕС‡РµРє РЅРµ РЅР°Р№РґРµРЅРѕ")
                 break
 
-            print(f"  [СТР {page}] Habr: найдено карточек: {len(cards)}")
+            print(f"  [РЎРўР  {page}] Habr: РЅР°Р№РґРµРЅРѕ РєР°СЂС‚РѕС‡РµРє: {len(cards)}")
 
             for card in cards:
                 vacancy = self._parse_habr_card(card)
@@ -1062,9 +1062,9 @@ class JobSearcher:
 
             time.sleep(1.0)
 
-        print(f"[ИТОГО] Habr '{query}': {len(vacancies)} вакансий")
+        print(f"[РРўРћР“Рћ] Habr '{query}': {len(vacancies)} РІР°РєР°РЅСЃРёР№")
 
-        # Дедупликация
+        # Р”РµРґСѓРїР»РёРєР°С†РёСЏ
         seen: dict[str, Vacancy] = {}
         for v in vacancies:
             if v.id not in seen:
@@ -1072,9 +1072,9 @@ class JobSearcher:
         return list(seen.values())
 
     def _parse_habr_card(self, card) -> Optional[Vacancy]:
-        """Парсит одну карточку вакансии с Habr Career."""
+        """РџР°СЂСЃРёС‚ РѕРґРЅСѓ РєР°СЂС‚РѕС‡РєСѓ РІР°РєР°РЅСЃРёРё СЃ Habr Career."""
         try:
-            # Название и ссылка
+            # РќР°Р·РІР°РЅРёРµ Рё СЃСЃС‹Р»РєР°
             title_tag = card.find("a", class_="vacancy-card__title-link")
             if not title_tag:
                 return None
@@ -1084,26 +1084,26 @@ class JobSearcher:
             if not path:
                 return None
 
-            # ID из пути /vacancies/1000XXXXXX
+            # ID РёР· РїСѓС‚Рё /vacancies/1000XXXXXX
             id_match = re.search(r"/vacancies/(\d+)", path)
             if not id_match:
                 return None
             vacancy_id = f"habr_{id_match.group(1)}"
             url = f"{self.HABR_BASE_URL}{path}"
 
-            # Компания — убираем emoji и лишние пробелы
+            # РљРѕРјРїР°РЅРёСЏ вЂ” СѓР±РёСЂР°РµРј emoji Рё Р»РёС€РЅРёРµ РїСЂРѕР±РµР»С‹
             comp_tag = card.find("a", class_=lambda x: x and "link-comp" in x)
-            company = re.sub(r"[^\w\s\-\.]", "", comp_tag.get_text(strip=True)).strip() if comp_tag else "Не указана"
+            company = re.sub(r"[^\w\s\-\.]", "", comp_tag.get_text(strip=True)).strip() if comp_tag else "РќРµ СѓРєР°Р·Р°РЅР°"
 
-            # Зарплата
+            # Р—Р°СЂРїР»Р°С‚Р°
             salary_from, salary_to, salary_currency = self._parse_habr_salary(card)
 
-            # Мета: уровень, удалённость
+            # РњРµС‚Р°: СѓСЂРѕРІРµРЅСЊ, СѓРґР°Р»С‘РЅРЅРѕСЃС‚СЊ
             meta_tag = card.find("div", class_=re.compile(r"vacancy-card__meta"))
             meta_text = meta_tag.get_text(" ", strip=True).lower() if meta_tag else ""
-            is_remote = "удалённо" in meta_text or "remote" in meta_text
+            is_remote = "СѓРґР°Р»С‘РЅРЅРѕ" in meta_text or "remote" in meta_text
 
-            # Дата публикации
+            # Р”Р°С‚Р° РїСѓР±Р»РёРєР°С†РёРё
             date_tag = card.find("time")
             published_at = date_tag.get("datetime", "") if date_tag else ""
 
@@ -1115,13 +1115,13 @@ class JobSearcher:
                 salary_from=salary_from,
                 salary_to=salary_to,
                 salary_currency=salary_currency,
-                location="Удалённо" if is_remote else "Не указано",
+                location="РЈРґР°Р»С‘РЅРЅРѕ" if is_remote else "РќРµ СѓРєР°Р·Р°РЅРѕ",
                 remote=is_remote,
                 published_at=published_at,
                 source="habr.career",
             )
 
-            # Те же фильтры что и для hh.ru
+            # РўРµ Р¶Рµ С„РёР»СЊС‚СЂС‹ С‡С‚Рѕ Рё РґР»СЏ hh.ru
             title_lower = title.lower()
             if any(kw in title_lower for kw in self.NOISE_TITLE_KEYWORDS):
                 return None
@@ -1135,8 +1135,8 @@ class JobSearcher:
 
     def _parse_habr_salary(self, card) -> tuple[Optional[int], Optional[int], Optional[str]]:
         """
-        Парсит зарплату из карточки Habr Career.
-        Примеры: "от 4000 до 6000 $", "от 150 000 ₽", "200 000 – 300 000 ₽"
+        РџР°СЂСЃРёС‚ Р·Р°СЂРїР»Р°С‚Сѓ РёР· РєР°СЂС‚РѕС‡РєРё Habr Career.
+        РџСЂРёРјРµСЂС‹: "РѕС‚ 4000 РґРѕ 6000 $", "РѕС‚ 150 000 в‚Ѕ", "200 000 вЂ“ 300 000 в‚Ѕ"
         """
         sal_tag = card.find(class_=re.compile(r"salary"))
         if not sal_tag:
@@ -1144,10 +1144,10 @@ class JobSearcher:
 
         text = sal_tag.get_text(strip=True).replace("\xa0", " ").replace(" ", " ")
 
-        # Валюта
+        # Р’Р°Р»СЋС‚Р°
         if "$" in text or "USD" in text:
             currency = "USD"
-        elif "€" in text or "EUR" in text:
+        elif "в‚¬" in text or "EUR" in text:
             currency = "EUR"
         else:
             currency = "RUB"
@@ -1155,11 +1155,11 @@ class JobSearcher:
         numbers = [int(n.replace(" ", "")) for n in re.findall(r"[\d][\d ]+", text) if n.strip()]
 
         salary_from = salary_to = None
-        if "от" in text.lower() and "до" in text.lower() and len(numbers) >= 2:
+        if "РѕС‚" in text.lower() and "РґРѕ" in text.lower() and len(numbers) >= 2:
             salary_from, salary_to = numbers[0], numbers[1]
-        elif "от" in text.lower() and numbers:
+        elif "РѕС‚" in text.lower() and numbers:
             salary_from = numbers[0]
-        elif "до" in text.lower() and numbers:
+        elif "РґРѕ" in text.lower() and numbers:
             salary_to = numbers[0]
         elif len(numbers) >= 2:
             salary_from, salary_to = numbers[0], numbers[1]
@@ -1170,14 +1170,14 @@ class JobSearcher:
 
     def save_to_json(self, vacancies: list[Vacancy], filename: Optional[str] = None) -> Path:
         """
-        Сохраняет найденные вакансии в JSON-файл в папке output/.
+        РЎРѕС…СЂР°РЅСЏРµС‚ РЅР°Р№РґРµРЅРЅС‹Рµ РІР°РєР°РЅСЃРёРё РІ JSON-С„Р°Р№Р» РІ РїР°РїРєРµ output/.
 
         Args:
-            vacancies: Список вакансий для сохранения
-            filename: Имя файла (генерируется автоматически если не указано)
+            vacancies: РЎРїРёСЃРѕРє РІР°РєР°РЅСЃРёР№ РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ
+            filename: РРјСЏ С„Р°Р№Р»Р° (РіРµРЅРµСЂРёСЂСѓРµС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РµСЃР»Рё РЅРµ СѓРєР°Р·Р°РЅРѕ)
 
         Returns:
-            Путь к сохранённому файлу
+            РџСѓС‚СЊ Рє СЃРѕС…СЂР°РЅС‘РЅРЅРѕРјСѓ С„Р°Р№Р»Сѓ
         """
         if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1195,16 +1195,16 @@ class JobSearcher:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        print(f"[СОХРАНЕНО] {output_path}")
+        print(f"[РЎРћРҐР РђРќР•РќРћ] {output_path}")
         return output_path
 
 
-# ─── Запуск для тестирования ──────────────────────────────────────────────────
+# в”Ђв”Ђв”Ђ Р—Р°РїСѓСЃРє РґР»СЏ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 if __name__ == "__main__":
     searcher = JobSearcher()
 
-    # Тест: один запрос, одна страница
+    # РўРµСЃС‚: РѕРґРёРЅ Р·Р°РїСЂРѕСЃ, РѕРґРЅР° СЃС‚СЂР°РЅРёС†Р°
     vacancies = searcher.search_hh(
         query="prompt engineer",
         area=113,
@@ -1212,15 +1212,15 @@ if __name__ == "__main__":
         pages=1,
     )
 
-    print(f"\n--- Первые 5 вакансий ---")
+    print(f"\n--- РџРµСЂРІС‹Рµ 5 РІР°РєР°РЅСЃРёР№ ---")
     for v in vacancies[:5]:
-        print(f"\n  Компания : {v.company}")
-        print(f"  Должность: {v.title}")
-        print(f"  Зарплата : {v.salary_str()}")
-        print(f"  Локация  : {v.location} {'(удалённо)' if v.remote else ''}")
-        print(f"  Ссылка   : {v.url}")
+        print(f"\n  РљРѕРјРїР°РЅРёСЏ : {v.company}")
+        print(f"  Р”РѕР»Р¶РЅРѕСЃС‚СЊ: {v.title}")
+        print(f"  Р—Р°СЂРїР»Р°С‚Р° : {v.salary_str()}")
+        print(f"  Р›РѕРєР°С†РёСЏ  : {v.location} {'(СѓРґР°Р»С‘РЅРЅРѕ)' if v.remote else ''}")
+        print(f"  РЎСЃС‹Р»РєР°   : {v.url}")
 
-    # Сохраняем результат
+    # РЎРѕС…СЂР°РЅСЏРµРј СЂРµР·СѓР»СЊС‚Р°С‚
     if vacancies:
         path = searcher.save_to_json(vacancies, "test_search.json")
-        print(f"\nФайл сохранён: {path}")
+        print(f"\nР¤Р°Р№Р» СЃРѕС…СЂР°РЅС‘РЅ: {path}")
