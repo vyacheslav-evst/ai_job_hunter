@@ -1,0 +1,146 @@
+{
+  "meta": {
+    "version": "1.0",
+    "last_updated": "2026-05-05",
+    "note": "Базовое резюме для адаптации под конкретные вакансии"
+  },
+
+  "personal": {
+    "name": "Слава",
+    "telegram": "@ysiSevera",
+    "email_primary": "slavarax@gmail.com",
+    "email_secondary": "ev78rus@yandex.ru",
+    "location": "Россия",
+    "work_format": ["remote", "hybrid"],
+    "languages": ["Русский — родной", "Английский — технический (чтение документации)"]
+  },
+
+  "target_roles": [
+    "Prompt Engineer",
+    "AI Engineer (Junior)",
+    "LLM Engineer (Junior)",
+    "AI Trainer / AI Content Specialist",
+    "NLP Engineer (Junior)",
+    "Conversational AI Designer"
+  ],
+
+  "summary": "Junior Prompt Engineer с практическим опытом в разработке многоэтапных LLM-пайплайнов и AI-агентов. Строю системы на Google Gemini API и GPT-4o. Применяю метод верификации через несколько моделей (кросс-модельная отладка). Ключевой принцип: понимать, почему работает — не только копировать решение.",
+
+  "skills": {
+    "prompt_engineering": [
+      "Проектирование многоэтапных prompt-пайплайнов (chain-of-thought, few-shot, zero-shot)",
+      "Anti-hallucination техники: самопроверка, JSON-first, детерминированная температура",
+      "Кросс-модельная верификация (Gemini, GPT-4o, Grok, Qwen)",
+      "Структурированный вывод: JSON Schema, Pydantic-валидация",
+      "Управление контекстом и системными промптами"
+    ],
+    "ai_development": [
+      "Google Gemini API (gemini-1.5-flash, gemini-1.5-pro)",
+      "LLM API интеграция (OpenAI-совместимые API)",
+      "Проектирование AI-агентов с памятью и инструментами",
+      "Retrieval-Augmented Generation (RAG) — базовый уровень"
+    ],
+    "programming": [
+      "Python 3.x (активно изучаю): requests, BeautifulSoup, Pydantic, asyncio",
+      "HTML/CSS/JavaScript — верстка и простые интерфейсы",
+      "Three.js — базовый уровень (Harmonia проект)",
+      "Git / GitHub — контроль версий"
+    ],
+    "tools": [
+      "VS Code, Cursor",
+      "Docker (базовый уровень)",
+      "Netlify (деплой)",
+      "Notion, Telegram"
+    ]
+  },
+
+  "projects": [
+    {
+      "name": "AI Job Hunter Agent",
+      "status": "in_progress",
+      "description": "Автономный Python-агент для поиска и отклика на AI-вакансии. Парсит hh.ru, Habr Career, Telegram-каналы. Анализирует вакансии через Gemini API, адаптирует резюме под конкретную позицию, генерирует сопроводительные письма.",
+      "stack": ["Python", "Google Gemini API", "BeautifulSoup", "Telethon", "Pydantic", "ChromaDB"],
+      "highlights": [
+        "Многоэтапный LLM-пайплайн: поиск → анализ → адаптация → генерация",
+        "Долгосрочная память агента на JSON/ChromaDB",
+        "CLI-интерфейс с командами /search /analyze /adapt /cover"
+      ],
+      "url": "https://github.com/ysiSevera/ai_job_hunter"
+    },
+    {
+      "name": "Vacancy Prompt System",
+      "status": "completed",
+      "description": "Prompt-система для обработки вакансий: 5-этапный пайплайн от сырого текста до сопроводительного письма. Спроектирован с нуля с акцентом на anti-hallucination и детерминированность.",
+      "stack": ["GPT-4o", "Prompt Engineering", "JSON Schema"],
+      "highlights": [
+        "P1: извлечение структурированного JSON из текста вакансии (temp=0.0)",
+        "P2: скоринг совпадения кандидат↔вакансия",
+        "P3: генерация cover letter (temp=0.7)",
+        "P4: anti-hallucination техники",
+        "P5: JSON-валидатор с fallback-логикой"
+      ],
+      "url": "https://github.com/ysiSevera/vacancy-prompt-system"
+    },
+    {
+      "name": "Leadra AI",
+      "status": "concept_and_planning",
+      "description": "Концепция AI-агента для автоматической обработки входящих сообщений в Telegram для малого бизнеса. Квалификация лидов, запись на консультации, сбор данных в CRM, follow-up.",
+      "stack": ["Python", "Telethon", "Google Gemini API", "Google Sheets API"],
+      "highlights": [
+        "Целевая аудитория: риелторы, клиники, автосервисы, юристы",
+        "24/7 квалификация входящих лидов без участия человека",
+        "Передача горячих лидов владельцу через уведомления"
+      ],
+      "url": null
+    },
+    {
+      "name": "Harmonia",
+      "status": "completed",
+      "description": "Браузерная симуляция процедурной мини-вселенной. 4 планеты, живые агенты (Harmonon) с нейронными сетями 4×4×2, эволюцией, дипломатией и межпланетными флотами.",
+      "stack": ["JavaScript", "Three.js", "Web Audio API", "Canvas 2D"],
+      "highlights": [
+        "Нейронные сети у каждого агента: эволюция через кроссовер и мутации",
+        "Механика резонанса: агенты взаимодействуют через частотную близость",
+        "Полностью self-contained: один HTML-файл, 104 KB, без сервера"
+      ],
+      "url": "https://github.com/ysiSevera/harmonia"
+    },
+    {
+      "name": "NeuralNest",
+      "status": "completed",
+      "description": "AI-блог и каталог инструментов. Обзоры, рейтинги и сравнения AI-продуктов. Задеплоен на Netlify.",
+      "stack": ["HTML", "CSS", "JavaScript", "Netlify"],
+      "highlights": [
+        "Полный цикл: проектирование, верстка, деплой",
+        "Разделы: блог, рейтинги, сравнения, промпты"
+      ],
+      "url": "https://neuralnest.netlify.app"
+    }
+  ],
+
+  "experience_notes": "Формальный коммерческий опыт в AI отсутствует (~2 месяца практики). Весь опыт — через личные проекты, самообразование и экспериментирование с LLM API. Готов к стажировкам и junior-позициям.",
+
+  "education": {
+    "formal": "Незаконченное высшее",
+    "self_education": [
+      "Prompt Engineering — самостоятельно через практику и документацию",
+      "Python — активное изучение через проекты",
+      "LLM архитектуры — документация, статьи, эксперименты",
+      "Курсы: изучение нейросетей через практические проекты"
+    ]
+  },
+
+  "soft_skills": [
+    "Упорство и самостоятельность в решении задач",
+    "Системный подход: верификация через несколько моделей",
+    "Быстрое обучение: от идеи до рабочего прототипа",
+    "Готовность признавать ошибки и итерировать"
+  ],
+
+  "keywords_for_matching": [
+    "prompt engineering", "LLM", "Gemini", "GPT", "AI agent", "RAG",
+    "Python", "NLP", "conversational AI", "chatbot", "JSON", "Pydantic",
+    "few-shot", "chain-of-thought", "fine-tuning", "AI trainer",
+    "Telegram bot", "BeautifulSoup", "API integration"
+  ]
+}

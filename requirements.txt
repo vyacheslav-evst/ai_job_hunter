@@ -1,0 +1,22 @@
+# Зависимости для секретов и переменных окружения
+python-dotenv==1.0.1
+
+# Google Gemini API
+google-generativeai==0.8.3
+
+# Парсинг веб-страниц (hh.ru, Habr Career)
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# Валидация данных
+pydantic==2.10.4
+
+# Telegram (парсинг каналов с вакансиями)
+telethon==1.38.1
+
+# Генерация PDF
+fpdf2==2.8.1
+
+# Работа с датами
+python-dateutil==2.9.0
