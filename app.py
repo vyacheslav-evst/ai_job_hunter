@@ -38,22 +38,19 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* ── Общий минималистичный сброс ── */
-section[data-testid="stSidebar"] { background: #16161e !important; }
-.stApp { background: #1a1a2e; }
-
-/* ── Карточка вакансии ── */
 .vacancy-card {
     background: #1e1e2e;
     border: 1px solid #313244;
-    border-radius: 10px;
-    padding: 16px 20px;
-    margin-bottom: 10px;
-    transition: border-color .2s;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
 }
-.vacancy-card:hover { border-color: #89b4fa; }
-
-/* ── Статус-бейдж «проанализирована» ── */
+.score-high { color: #a6e3a1; font-weight: bold; }
+.score-mid  { color: #f9e2af; font-weight: bold; }
+.score-low  { color: #f38ba8; font-weight: bold; }
+.badge-apply { background:#a6e3a1; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+.badge-maybe { background:#f9e2af; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+.badge-skip  { background:#f38ba8; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
 .analyzed-tag {
     display: inline-block;
     background: #a6e3a1;
@@ -65,18 +62,6 @@ section[data-testid="stSidebar"] { background: #16161e !important; }
     margin-left: 6px;
     vertical-align: middle;
 }
-
-/* ── Score-цвета ── */
-.score-high { color: #a6e3a1; font-weight: bold; }
-.score-mid  { color: #f9e2af; font-weight: bold; }
-.score-low  { color: #f38ba8; font-weight: bold; }
-
-/* ── Recommendation badges ── */
-.badge-apply { background:#a6e3a1; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
-.badge-maybe { background:#f9e2af; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
-.badge-skip  { background:#f38ba8; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
-
-/* ── Подсказка-переход ── */
 .step-hint {
     background: #313244;
     border-left: 3px solid #89b4fa;
