@@ -256,9 +256,8 @@ PROFESSION_PRESET=Frontend Developer
 - [x] Дедупликация между сессиями
 - [x] Evaluation pipeline (Precision, Invite Rate, Accuracy)
 - [x] GitHub Actions CI (линтер + тесты)
-- [ ] Деплой на Hugging Face Spaces
+- [x] Деплой на Hugging Face Spaces
 - [ ] Демо-видео / GIF
-- [ ] Парсинг SuperJob
 
 ---
 
