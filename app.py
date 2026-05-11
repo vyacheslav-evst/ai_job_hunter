@@ -38,19 +38,54 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+/* ── Общий минималистичный сброс ── */
+section[data-testid="stSidebar"] { background: #16161e !important; }
+.stApp { background: #1a1a2e; }
+
+/* ── Карточка вакансии ── */
 .vacancy-card {
     background: #1e1e2e;
     border: 1px solid #313244;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 12px;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    transition: border-color .2s;
 }
+.vacancy-card:hover { border-color: #89b4fa; }
+
+/* ── Статус-бейдж «проанализирована» ── */
+.analyzed-tag {
+    display: inline-block;
+    background: #a6e3a1;
+    color: #1e1e2e;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* ── Score-цвета ── */
 .score-high { color: #a6e3a1; font-weight: bold; }
 .score-mid  { color: #f9e2af; font-weight: bold; }
 .score-low  { color: #f38ba8; font-weight: bold; }
+
+/* ── Recommendation badges ── */
 .badge-apply { background:#a6e3a1; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
 .badge-maybe { background:#f9e2af; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
 .badge-skip  { background:#f38ba8; color:#1e1e2e; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; }
+
+/* ── Подсказка-переход ── */
+.step-hint {
+    background: #313244;
+    border-left: 3px solid #89b4fa;
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin-top: 14px;
+    font-size: 14px;
+    color: #cdd6f4;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -286,14 +321,28 @@ if page == "🔍 Поиск":
         vacancies = st.session_state.vacancies
         st.subheader(f"Найденные вакансии ({len(vacancies)})")
 
+        # IDs уже проанализированных вакансий для статус-бейджа
+        analyzed_ids = {a.vacancy_id for a in st.session_state.analyses}
+
         for i, v in enumerate(vacancies):
             source_badge = "🟠 Habr" if v.source == "habr.career" else "🟢 hh.ru"
-            with st.expander(f"**{i+1}. {v.title}** — {v.company}  {source_badge}"):
+            analyzed_tag = '<span class="analyzed-tag">✔ проанализирована</span>' if v.id in analyzed_ids else ""
+            label = f"**{i+1}. {v.title}** — {v.company}  {source_badge}"
+            with st.expander(label):
+                if analyzed_tag:
+                    st.markdown(analyzed_tag, unsafe_allow_html=True)
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Компания", v.company)
                 col2.metric("Зарплата", v.salary_str())
                 col3.metric("Формат", "Удалённо" if v.remote else v.location)
                 st.link_button("Открыть вакансию", v.url)
+
+        # Подсказка-переход к анализу
+        st.markdown(
+            '<div class="step-hint">👉 Вакансии найдены — перейди на вкладку <b>📊 Анализ</b>, '
+            'чтобы оценить их через LLM.</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ─── Страница: Анализ ─────────────────────────────────────────────────────────
@@ -302,28 +351,57 @@ elif page == "📊 Анализ":
     st.title("📊 Анализ вакансий")
 
     if not st.session_state.vacancies:
-        st.info("Сначала найди вакансии на вкладке **Поиск**")
+        st.info("Сначала найди вакансии на вкладке **🔍 Поиск**")
     else:
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            limit = st.slider(
-                "Сколько вакансий анализировать",
-                min_value=5,
-                max_value=min(30, len(st.session_state.vacancies)),
-                value=min(15, len(st.session_state.vacancies)),
-            )
-        with col2:
-            st.metric("Доступно вакансий", len(st.session_state.vacancies))
-        with col3:
-            est = limit * 5
-            st.metric("Примерное время", f"~{est} сек")
+        vacancies_all = st.session_state.vacancies
+        n_total = len(vacancies_all)
 
-        analyze_clicked = st.button("🧠 Анализировать через LLM", type="primary")
+        # ── Режим выбора: слайдер или чекбоксы ──
+        mode = st.radio(
+            "Способ выбора вакансий",
+            ["Слайдер (первые N)", "Вручную (чекбоксы)"],
+            horizontal=True,
+        )
+
+        if mode == "Слайдер (первые N)":
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                limit = st.slider(
+                    "Сколько вакансий анализировать",
+                    min_value=1,
+                    max_value=n_total,
+                    value=min(15, n_total),
+                )
+            with col2:
+                st.metric("Доступно вакансий", n_total)
+            with col3:
+                est = limit * 5
+                st.metric("Примерное время", f"~{est} сек")
+            vacancies_to_analyze = vacancies_all[:limit]
+        else:
+            st.markdown(f"**Выбери вакансии для анализа** (доступно: {n_total})")
+            selected_ids = []
+            for i, v in enumerate(vacancies_all):
+                label = f"{i+1}. {v.title} — {v.company}"
+                if st.checkbox(label, key=f"chk_{v.id}"):
+                    selected_ids.append(v.id)
+            vacancies_to_analyze = [v for v in vacancies_all if v.id in selected_ids]
+            limit = len(vacancies_to_analyze)
+            if limit:
+                st.caption(f"Выбрано: {limit} · ~{limit * 5} сек")
+            else:
+                st.warning("Выбери хотя бы одну вакансию")
+
+        analyze_clicked = st.button(
+            "🧠 Анализировать через LLM",
+            type="primary",
+            disabled=(limit == 0),
+        )
 
         if analyze_clicked:
             searcher = get_searcher()
             analyzer = get_analyzer()
-            vacancies_to_analyze = st.session_state.vacancies[:limit]
+            # vacancies_to_analyze уже определён выше (слайдер или чекбоксы)
 
             progress = st.progress(0, text="Загружаю описания вакансий...")
 
@@ -363,6 +441,11 @@ elif page == "📊 Анализ":
 
             if results:
                 st.success(f"Прошли порог {config.RELEVANCE_THRESHOLD}+: **{len(results)}** вакансий")
+                st.markdown(
+                    '<div class="step-hint">👉 Анализ готов — перейди на вкладку '
+                    '<b>📝 Резюме и письма</b> или <b>📄 Отчёт</b>.</div>',
+                    unsafe_allow_html=True,
+                )
             else:
                 st.warning("Ни одна вакансия не прошла порог. Попробуй снизить RELEVANCE_THRESHOLD в .env")
 
@@ -421,7 +504,7 @@ elif page == "📝 Резюме и письма":
     st.title("📝 Резюме и сопроводительные письма")
 
     if not st.session_state.analyses:
-        st.info("Сначала проанализируй вакансии на вкладке **Анализ**")
+        st.info("Сначала проанализируй вакансии на вкладке **📊 Анализ**")
     else:
         analyses = st.session_state.analyses
 
@@ -508,7 +591,7 @@ elif page == "📄 Отчёт":
     st.title("📄 Отчёт по вакансиям")
 
     if not st.session_state.analyses:
-        st.info("Сначала проанализируй вакансии на вкладке **Анализ**")
+        st.info("Сначала проанализируй вакансии на вкладке **📊 Анализ**")
     else:
         analyses = st.session_state.analyses
 
