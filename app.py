@@ -6,6 +6,9 @@ app.py — Streamlit веб-интерфейс для AI Job Hunter Agent
 import sys
 import json
 import time
+import csv as csv_module
+import io
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -131,7 +134,7 @@ def score_color(score: int) -> str:
     return "score-low"
 
 def load_session():
-    """Загружает сохранённую сессию из output/session.json."""
+    """Загружает последнюю сохранённую сессию из output/session.json."""
     path = config.OUTPUT_DIR / "session.json"
     if path.exists():
         try:
@@ -145,6 +148,51 @@ def load_session():
         except Exception:
             pass
     return 0
+
+
+def list_sessions() -> list[dict]:
+    """
+    Возвращает список сохранённых сессий из output/sessions/.
+    Каждая запись: {"filename": ..., "date": ..., "count": ...}
+    """
+    sessions_dir = config.OUTPUT_DIR / "sessions"
+    if not sessions_dir.exists():
+        return []
+    result = []
+    for path in sorted(sessions_dir.glob("session_*.json"), reverse=True):
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            result.append({
+                "filename": path.name,
+                "path": str(path),
+                "date": data.get("saved_at", path.stem.replace("session_", "")),
+                "count": len(data.get("analyses", [])),
+            })
+        except Exception:
+            pass
+    return result
+
+
+def save_session_history(analyses: list) -> None:
+    """
+    Сохраняет текущую сессию в output/sessions/session_YYYYMMDD_HHMMSS.json
+    и обновляет output/session.json (последняя сессия для быстрой загрузки).
+    """
+    config.OUTPUT_DIR.mkdir(exist_ok=True)
+    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    data = {
+        "saved_at": datetime.now().strftime("%d.%m.%Y %H:%M"),
+        "analyses": [a.model_dump() for a in analyses],
+    }
+    # Последняя сессия (для автозагрузки)
+    with open(config.OUTPUT_DIR / "session.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    # История сессий
+    sessions_dir = config.OUTPUT_DIR / "sessions"
+    sessions_dir.mkdir(exist_ok=True)
+    with open(sessions_dir / f"session_{now_str}.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def load_seen_ids() -> set:
@@ -195,6 +243,27 @@ with st.sidebar:
     st.markdown(f"Проанализировано: `{len(st.session_state.analyses)}`")
     st.markdown(f"Адаптировано резюме: `{len(st.session_state.adapted_resumes)}`")
 
+    # История сессий
+    sessions = list_sessions()
+    if sessions:
+        st.divider()
+        st.markdown("**История сессий**")
+        options = [f"{s['date']} ({s['count']} вак.)" for s in sessions]
+        chosen = st.selectbox("Загрузить сессию", options, label_visibility="collapsed")
+        if st.button("📂 Загрузить", use_container_width=True):
+            chosen_idx = options.index(chosen)
+            chosen_path = sessions[chosen_idx]["path"]
+            try:
+                with open(chosen_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                analyses = [VacancyAnalysis(**a) for a in data.get("analyses", [])]
+                st.session_state.analyses = analyses
+                st.session_state.analyze_done = True
+                st.success(f"Загружено: {len(analyses)} вакансий")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Ошибка загрузки: {e}")
+
     st.divider()
     st.caption("gpt-4o-mini · hh.ru · Python")
 
@@ -241,28 +310,37 @@ if page == "🔍 Поиск":
 
     if search_clicked:
         searcher = get_searcher()
-        # Применяем выбранный пресет профессии
         queries_to_use = config.PROFESSION_PRESETS[profession]
 
-        with st.spinner("Ищу вакансии..."):
-            if query.strip():
-                vacancies = searcher.search_hh(query.strip(), pages=pages)
-                if include_habr:
-                    habr = searcher.search_habr(query.strip(), pages=pages)
-                    seen_ids = {v.id for v in vacancies}
-                    vacancies += [v for v in habr if v.id not in seen_ids]
-            else:
-                all_vacs: dict[str, object] = {}
-                for q in queries_to_use:
-                    for v in searcher.search_hh(q, pages=pages):
-                        if v.id not in all_vacs:
-                            all_vacs[v.id] = v
-                if include_habr:
-                    for q in queries_to_use:
-                        for v in searcher.search_habr(q, pages=pages):
-                            if v.id not in all_vacs:
-                                all_vacs[v.id] = v
-                vacancies = list(all_vacs.values())
+        # Прогресс-бар при поиске
+        progress = st.progress(0, text="Начинаю поиск...")
+        all_vacs: dict[str, object] = {}
+
+        if query.strip():
+            query_list = [query.strip()]
+            sources = ["hh"] + (["habr"] if include_habr else [])
+        else:
+            query_list = queries_to_use
+            sources = ["hh"] + (["habr"] if include_habr else [])
+
+        total_steps = len(query_list) * len(sources)
+        step = 0
+
+        for src in sources:
+            for q in query_list:
+                step += 1
+                src_label = "hh.ru" if src == "hh" else "Habr Career"
+                progress.progress(step / total_steps, text=f"[{step}/{total_steps}] {src_label}: «{q}»")
+                if src == "hh":
+                    results = searcher.search_hh(q, pages=pages)
+                else:
+                    results = searcher.search_habr(q, pages=pages)
+                for v in results:
+                    if v.id not in all_vacs:
+                        all_vacs[v.id] = v
+
+        progress.empty()
+        vacancies = list(all_vacs.values())
 
         # Фильтр по зарплате
         if salary_min > 0:
@@ -295,8 +373,8 @@ if page == "🔍 Поиск":
         st.session_state.analyze_done = False
 
         if vacancies:
-            hh_cnt    = sum(1 for v in vacancies if v.source == "hh.ru")
-            habr_cnt  = sum(1 for v in vacancies if v.source == "habr.career")
+            hh_cnt   = sum(1 for v in vacancies if v.source == "hh.ru")
+            habr_cnt = sum(1 for v in vacancies if v.source == "habr.career")
             st.success(f"Найдено: **{len(vacancies)}** вакансий (hh.ru: {hh_cnt}, Habr: {habr_cnt})")
         else:
             st.warning("Вакансии не найдены. Попробуй другой запрос.")
@@ -304,12 +382,61 @@ if page == "🔍 Поиск":
     # Список вакансий
     if st.session_state.vacancies:
         vacancies = st.session_state.vacancies
-        st.subheader(f"Найденные вакансии ({len(vacancies)})")
+
+        # ── Сортировка и фильтрация ──
+        col_sort, col_remote, col_src = st.columns([2, 1, 1])
+        with col_sort:
+            sort_by = st.selectbox(
+                "Сортировка",
+                ["По умолчанию", "Зарплата ↓", "Зарплата ↑", "Название А-Я"],
+                label_visibility="collapsed",
+            )
+        with col_remote:
+            only_remote = st.checkbox("Только удалённые", value=False)
+        with col_src:
+            src_filter = st.selectbox(
+                "Источник",
+                ["Все", "hh.ru", "Habr Career"],
+                label_visibility="collapsed",
+            )
+
+        # Применяем фильтры
+        filtered_vacs = vacancies
+        if only_remote:
+            filtered_vacs = [v for v in filtered_vacs if v.remote]
+        if src_filter == "hh.ru":
+            filtered_vacs = [v for v in filtered_vacs if v.source == "hh.ru"]
+        elif src_filter == "Habr Career":
+            filtered_vacs = [v for v in filtered_vacs if v.source == "habr.career"]
+
+        # Применяем сортировку
+        if sort_by == "Зарплата ↓":
+            filtered_vacs = sorted(filtered_vacs, key=lambda v: v.salary_from or 0, reverse=True)
+        elif sort_by == "Зарплата ↑":
+            filtered_vacs = sorted(filtered_vacs, key=lambda v: v.salary_from or 0)
+        elif sort_by == "Название А-Я":
+            filtered_vacs = sorted(filtered_vacs, key=lambda v: v.title.lower())
+
+        st.subheader(f"Найденные вакансии ({len(filtered_vacs)} из {len(vacancies)})")
+
+        # ── Экспорт в CSV ──
+        if filtered_vacs:
+            buf = io.StringIO()
+            writer = csv_module.writer(buf)
+            writer.writerow(["Название", "Компания", "Зарплата", "Удалённо", "Источник", "Ссылка"])
+            for v in filtered_vacs:
+                writer.writerow([v.title, v.company, v.salary_str(), "Да" if v.remote else "Нет", v.source, v.url])
+            st.download_button(
+                "📥 Скачать CSV",
+                buf.getvalue().encode("utf-8-sig"),
+                file_name="vacancies.csv",
+                mime="text/csv",
+            )
 
         # IDs уже проанализированных вакансий для статус-бейджа
         analyzed_ids = {a.vacancy_id for a in st.session_state.analyses}
 
-        for i, v in enumerate(vacancies):
+        for i, v in enumerate(filtered_vacs):
             source_badge = "🟠 Habr" if v.source == "habr.career" else "🟢 hh.ru"
             analyzed_tag = '<span class="analyzed-tag">✔ проанализирована</span>' if v.id in analyzed_ids else ""
             label = f"**{i+1}. {v.title}** — {v.company}  {source_badge}"
@@ -416,11 +543,9 @@ elif page == "📊 Анализ":
             st.session_state.analyze_done = True
             st.session_state.adapted_resumes = {}
 
-            # Сохраняем сессию
+            # Сохраняем сессию (последняя + история)
             try:
-                config.OUTPUT_DIR.mkdir(exist_ok=True)
-                with open(config.OUTPUT_DIR / "session.json", "w", encoding="utf-8") as f:
-                    json.dump({"analyses": [a.model_dump() for a in results]}, f, ensure_ascii=False, indent=2)
+                save_session_history(results)
             except Exception:
                 pass
 
