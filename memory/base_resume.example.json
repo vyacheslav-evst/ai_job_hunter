@@ -6,10 +6,10 @@
   },
 
   "personal": {
-    "name": "Слава",
-    "telegram": "@ysiSevera",
-    "email_primary": "slavarax@gmail.com",
-    "email_secondary": "ev78rus@yandex.ru",
+    "name": "Ваше Имя",
+    "telegram": "@your_telegram",
+    "email_primary": "your@email.com",
+    "email_secondary": "your_secondary@email.com",
     "location": "Россия",
     "work_format": ["remote", "hybrid"],
     "languages": ["Русский — родной", "Английский — технический (чтение документации)"]
@@ -65,7 +65,7 @@
         "Долгосрочная память агента на JSON/ChromaDB",
         "CLI-интерфейс с командами /search /analyze /adapt /cover"
       ],
-      "url": "https://github.com/ysiSevera/ai_job_hunter"
+      "url": "https://github.com/your_username/ai_job_hunter"
     },
     {
       "name": "Vacancy Prompt System",
@@ -79,7 +79,7 @@
         "P4: anti-hallucination техники",
         "P5: JSON-валидатор с fallback-логикой"
       ],
-      "url": "https://github.com/ysiSevera/vacancy-prompt-system"
+      "url": "https://github.com/your_username/vacancy-prompt-system"
     },
     {
       "name": "Leadra AI",
@@ -103,7 +103,7 @@
         "Механика резонанса: агенты взаимодействуют через частотную близость",
         "Полностью self-contained: один HTML-файл, 104 KB, без сервера"
       ],
-      "url": "https://github.com/ysiSevera/harmonia"
+      "url": "https://github.com/your_username/harmonia"
     },
     {
       "name": "NeuralNest",
