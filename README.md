@@ -2,7 +2,6 @@
 
 > Автономный Python-агент для поиска AI-вакансий на hh.ru, анализа через LLM и адаптации резюме под каждую позицию.
 
-**Автор:** Слава ([@ysiSevera](https://t.me/ysiSevera)) — Junior Prompt Engineer  
 **Стек:** Python 3.x · OpenAI API · BeautifulSoup · Pydantic · fpdf2
 
 ---
