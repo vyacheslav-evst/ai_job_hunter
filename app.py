@@ -18,6 +18,10 @@ from modules.analyzer import VacancyAnalyzer, VacancyAnalysis
 from modules.resume_adapter import ResumeAdapter
 from modules.cover_letter import CoverLetterGenerator
 from modules.exporter import Exporter
+from modules.evaluator import (
+    load_feedback, save_feedback, record_outcome,
+    compute_metrics, OUTCOME_LABELS,
+)
 
 
 # ─── Конфигурация страницы ────────────────────────────────────────────────────
@@ -123,6 +127,25 @@ def load_session():
     return 0
 
 
+def load_seen_ids() -> set:
+    """Загружает ID вакансий, которые уже показывались в прошлых сессиях."""
+    path = config.OUTPUT_DIR / "seen_ids.json"
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8") as f:
+                return set(json.load(f))
+        except Exception:
+            pass
+    return set()
+
+
+def save_seen_ids(ids: set) -> None:
+    """Сохраняет ID показанных вакансий."""
+    config.OUTPUT_DIR.mkdir(exist_ok=True)
+    with open(config.OUTPUT_DIR / "seen_ids.json", "w", encoding="utf-8") as f:
+        json.dump(list(ids), f)
+
+
 # ─── Сайдбар ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -140,7 +163,7 @@ with st.sidebar:
     # Навигация
     page = st.radio(
         "Раздел",
-        ["🔍 Поиск", "📊 Анализ", "📝 Резюме и письма", "📄 Отчёт"],
+        ["🔍 Поиск", "📊 Анализ", "📝 Резюме и письма", "📄 Отчёт", "📈 Оценка агента"],
         label_visibility="collapsed",
     )
 
@@ -165,24 +188,86 @@ if page == "🔍 Поиск":
     with col1:
         query = st.text_input(
             "Поисковый запрос",
-            placeholder="Оставь пустым для поиска по всем AI-запросам",
+            placeholder="Оставь пустым для поиска по всем запросам выбранной профессии",
         )
     with col2:
-        pages = st.selectbox("Страниц hh.ru", [1, 2, 3], index=1)
+        pages = st.selectbox("Страниц", [1, 2, 3], index=1)
 
-    col_btn, col_info = st.columns([1, 3])
+    col_prof, col_salary, col_habr = st.columns([2, 2, 1])
+    with col_prof:
+        profession = st.selectbox(
+            "Профессия",
+            list(config.PROFESSION_PRESETS.keys()),
+            index=list(config.PROFESSION_PRESETS.keys()).index(config.ACTIVE_PROFESSION),
+        )
+    with col_salary:
+        salary_min = st.number_input(
+            "Мин. зарплата (RUB, 0 = не фильтровать)",
+            min_value=0,
+            max_value=1_000_000,
+            step=10_000,
+            value=0,
+        )
+    with col_habr:
+        include_habr = st.checkbox("Habr Career", value=True)
+
+    col_btn, col_seen, col_info = st.columns([1, 1, 2])
     with col_btn:
         search_clicked = st.button("🔍 Найти вакансии", type="primary", use_container_width=True)
+    with col_seen:
+        hide_seen = st.checkbox("Скрыть виденные", value=True, help="Скрыть вакансии из прошлых поисков")
     with col_info:
-        st.caption("Поиск по всем запросам занимает ~30 сек")
+        st.caption(f"Запросов: {len(config.PROFESSION_PRESETS[profession])} · Поиск ~30–60 сек")
 
     if search_clicked:
         searcher = get_searcher()
-        with st.spinner("Ищу вакансии на hh.ru..."):
+        # Применяем выбранный пресет профессии
+        queries_to_use = config.PROFESSION_PRESETS[profession]
+
+        with st.spinner("Ищу вакансии..."):
             if query.strip():
                 vacancies = searcher.search_hh(query.strip(), pages=pages)
+                if include_habr:
+                    habr = searcher.search_habr(query.strip(), pages=pages)
+                    seen_ids = {v.id for v in vacancies}
+                    vacancies += [v for v in habr if v.id not in seen_ids]
             else:
-                vacancies = searcher.search_all_queries()
+                all_vacs: dict[str, object] = {}
+                for q in queries_to_use:
+                    for v in searcher.search_hh(q, pages=pages):
+                        if v.id not in all_vacs:
+                            all_vacs[v.id] = v
+                if include_habr:
+                    for q in queries_to_use:
+                        for v in searcher.search_habr(q, pages=pages):
+                            if v.id not in all_vacs:
+                                all_vacs[v.id] = v
+                vacancies = list(all_vacs.values())
+
+        # Фильтр по зарплате
+        if salary_min > 0:
+            before = len(vacancies)
+            vacancies = [
+                v for v in vacancies
+                if (v.salary_from and v.salary_from >= salary_min)
+                or (v.salary_to   and v.salary_to   >= salary_min)
+            ]
+            filtered_out = before - len(vacancies)
+            if filtered_out:
+                st.info(f"Отфильтровано по зарплате: {filtered_out} вакансий")
+
+        # Дедупликация между сессиями
+        seen_ids = load_seen_ids()
+        if hide_seen and seen_ids:
+            before = len(vacancies)
+            vacancies = [v for v in vacancies if v.id not in seen_ids]
+            hidden = before - len(vacancies)
+            if hidden:
+                st.info(f"Скрыто виденных ранее: {hidden} вакансий")
+
+        # Запоминаем все показанные ID
+        new_ids = seen_ids | {v.id for v in vacancies}
+        save_seen_ids(new_ids)
 
         st.session_state.vacancies = vacancies
         st.session_state.search_done = True
@@ -190,7 +275,9 @@ if page == "🔍 Поиск":
         st.session_state.analyze_done = False
 
         if vacancies:
-            st.success(f"Найдено: {len(vacancies)} вакансий")
+            hh_cnt    = sum(1 for v in vacancies if v.source == "hh.ru")
+            habr_cnt  = sum(1 for v in vacancies if v.source == "habr.career")
+            st.success(f"Найдено: **{len(vacancies)}** вакансий (hh.ru: {hh_cnt}, Habr: {habr_cnt})")
         else:
             st.warning("Вакансии не найдены. Попробуй другой запрос.")
 
@@ -200,12 +287,13 @@ if page == "🔍 Поиск":
         st.subheader(f"Найденные вакансии ({len(vacancies)})")
 
         for i, v in enumerate(vacancies):
-            with st.expander(f"**{i+1}. {v.title}** — {v.company}"):
+            source_badge = "🟠 Habr" if v.source == "habr.career" else "🟢 hh.ru"
+            with st.expander(f"**{i+1}. {v.title}** — {v.company}  {source_badge}"):
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Компания", v.company)
                 col2.metric("Зарплата", v.salary_str())
                 col3.metric("Формат", "Удалённо" if v.remote else v.location)
-                st.link_button("Открыть на hh.ru", f"https://hh.ru/vacancy/{v.id}")
+                st.link_button("Открыть вакансию", v.url)
 
 
 # ─── Страница: Анализ ─────────────────────────────────────────────────────────
@@ -463,5 +551,91 @@ elif page == "📄 Отчёт":
             st.markdown(
                 f"{i}. **{a.vacancy_title}** — {a.company} &nbsp;"
                 f"<span class='{sc_cls}'>{a.relevance_score}/100</span> &nbsp; {badge}",
+                unsafe_allow_html=True,
+            )
+
+
+# ─── Страница: Оценка агента ─────────────────────────────────────────────────
+
+elif page == "📈 Оценка агента":
+    st.title("📈 Оценка качества рекомендаций")
+    st.caption("Отмечай реальные исходы — агент учится, ты видишь его точность")
+
+    feedback = load_feedback()
+    metrics = compute_metrics(feedback)
+
+    # Метрики
+    if metrics:
+        st.subheader("Метрики")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Оценено вакансий", metrics["total_recorded"])
+        c2.metric(
+            "Precision APPLY",
+            f"{metrics['precision_apply']}%" if metrics["precision_apply"] is not None else "—",
+            help="Доля APPLY-вакансий, по которым реально откликнулся",
+        )
+        c3.metric(
+            "Invite Rate",
+            f"{metrics['invite_rate']}%" if metrics["invite_rate"] is not None else "—",
+            help="Доля откликов, по которым пригласили",
+        )
+        c4.metric(
+            "Accuracy",
+            f"{metrics['accuracy']}%" if metrics["accuracy"] is not None else "—",
+            help="Общая точность решений агента",
+        )
+        st.divider()
+
+    # Форма записи исхода
+    if st.session_state.analyses:
+        st.subheader("Записать исход")
+        analyses = st.session_state.analyses
+        options = [f"{i+1}. {a.vacancy_title} — {a.company} [{a.recommendation}]"
+                   for i, a in enumerate(analyses)]
+        selected = st.selectbox("Вакансия", options)
+        idx = int(selected.split(".")[0]) - 1
+        a = analyses[idx]
+
+        already = feedback.get(a.vacancy_id, {})
+        current_outcome = already.get("outcome", None)
+        outcome_options = list(OUTCOME_LABELS.keys())
+        outcome_idx = outcome_options.index(current_outcome) if current_outcome in outcome_options else 0
+
+        outcome = st.radio(
+            "Что произошло?",
+            outcome_options,
+            format_func=lambda x: OUTCOME_LABELS[x],
+            index=outcome_idx,
+            horizontal=True,
+        )
+
+        if st.button("💾 Сохранить", type="primary"):
+            record_outcome(
+                vacancy_id=a.vacancy_id,
+                vacancy_title=a.vacancy_title,
+                company=a.company,
+                agent_recommendation=a.recommendation,
+                relevance_score=a.relevance_score,
+                outcome=outcome,
+            )
+            st.success("Исход записан!")
+            st.rerun()
+    else:
+        st.info("Сначала проанализируй вакансии на вкладке **Анализ**")
+
+    # История фидбэка
+    if feedback:
+        st.divider()
+        st.subheader(f"История ({len(feedback)} записей)")
+        for vid, entry in sorted(
+            feedback.items(),
+            key=lambda x: x[1].get("recorded_at", ""),
+            reverse=True,
+        ):
+            outcome_label = OUTCOME_LABELS.get(entry["outcome"], entry["outcome"])
+            rec_label = rec_badge(entry["agent_recommendation"])
+            st.markdown(
+                f"**{entry['vacancy_title']}** — {entry['company']} &nbsp;"
+                f"score: `{entry['relevance_score']}` &nbsp; агент: {rec_label} &nbsp; исход: **{outcome_label}**",
                 unsafe_allow_html=True,
             )

@@ -17,13 +17,15 @@ short_description: Автономный агент для поиска AI-вак
 **Автор:** Слава · [@ysiSevera](https://t.me/ysiSevera)  
 **Стек:** Python 3.11 · OpenAI API · Streamlit · BeautifulSoup · Pydantic · fpdf2 · Docker
 
+![CI](https://github.com/slwvw1234-hue/ai_job_hunter/actions/workflows/ci.yml/badge.svg)
+
 ---
 
 ## Что умеет агент
 
 | Команда | Что делает |
 |---------|-----------|
-| `/search` | Парсит hh.ru по 11 AI-запросам, фильтрует мусор и Senior-вакансии, дедуплицирует |
+| `/search` | Парсит **hh.ru и Habr Career** по запросам выбранной профессии, фильтрует мусор и Senior-вакансии, дедуплицирует |
 | `/analyze [N]` | Анализирует N вакансий через LLM: score 0–100, APPLY / MAYBE / SKIP |
 | `/adapt N` | Адаптирует резюме под конкретную вакансию (без придумывания фактов) |
 | `/cover N [тон]` | Генерирует персонализированное сопроводительное письмо (professional / friendly / concise) |
@@ -224,17 +226,22 @@ SEARCH_QUERIES = [
 ## Roadmap
 
 - [x] Парсинг hh.ru с фильтрацией Senior/мусора
+- [x] Парсинг Habr Career
 - [x] Анализ через LLM (OpenAI / OpenRouter)
 - [x] Адаптация резюме под вакансию
 - [x] Генерация сопроводительных писем
 - [x] Экспорт в PDF
 - [x] Сохранение сессии между запусками
-- [x] Streamlit веб-интерфейс (4 страницы)
+- [x] Streamlit веб-интерфейс (5 страниц)
 - [x] Docker-образ
+- [x] Универсальный режим (4 пресета профессий)
+- [x] Фильтр по зарплате
+- [x] Дедупликация между сессиями
+- [x] Evaluation pipeline (Precision, Invite Rate, Accuracy)
+- [x] GitHub Actions CI (линтер + тесты)
 - [ ] Деплой на Hugging Face Spaces
-- [ ] Универсальный режим (любая профессия, не только AI)
-- [ ] Парсинг Habr Career
-- [ ] Evaluation pipeline (метрики качества адаптации)
+- [ ] Демо-видео / GIF
+- [ ] Парсинг SuperJob
 
 ---
 

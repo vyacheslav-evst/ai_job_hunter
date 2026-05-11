@@ -39,19 +39,53 @@ TELEGRAM_CHANNELS: list[str] = [
 
 # ─── Настройки поиска hh.ru ───────────────────────────────────────────────────
 HH_BASE_URL: str = "https://api.hh.ru"
-SEARCH_QUERIES: list[str] = [
-    "prompt engineer",
-    "AI engineer",
-    "LLM engineer",
-    "NLP engineer",
-    "conversational AI",
-    "AI trainer",
-    "AI content specialist",
-    "LLM developer",
-    "AI автоматизация",
-    "чат-бот разработчик",
-    "ML инженер junior",
-]
+
+# Пресеты запросов для разных профессий
+PROFESSION_PRESETS: dict[str, list[str]] = {
+    "AI/ML Engineer": [
+        "prompt engineer",
+        "AI engineer",
+        "LLM engineer",
+        "NLP engineer",
+        "conversational AI",
+        "AI trainer",
+        "AI content specialist",
+        "LLM developer",
+        "AI автоматизация",
+        "чат-бот разработчик",
+        "ML инженер junior",
+    ],
+    "Python Developer": [
+        "python developer",
+        "python разработчик",
+        "backend python",
+        "django developer",
+        "fastapi developer",
+        "python junior",
+    ],
+    "Data Analyst": [
+        "data analyst",
+        "аналитик данных",
+        "бизнес-аналитик data",
+        "sql analyst",
+        "junior data analyst",
+        "BI аналитик",
+    ],
+    "Frontend Developer": [
+        "frontend developer",
+        "react developer",
+        "vue developer",
+        "javascript developer",
+        "typescript developer",
+        "frontend junior",
+    ],
+}
+
+# Активный пресет (можно переопределить через .env PROFESSION_PRESET)
+_preset_name: str = os.getenv("PROFESSION_PRESET", "AI/ML Engineer")
+SEARCH_QUERIES: list[str] = PROFESSION_PRESETS.get(_preset_name, PROFESSION_PRESETS["AI/ML Engineer"])
+ACTIVE_PROFESSION: str = _preset_name if _preset_name in PROFESSION_PRESETS else "AI/ML Engineer"
+
 SEARCH_AREA: int = int(os.getenv("SEARCH_AREA", "113"))  # 113 = вся Россия
 SEARCH_ONLY_REMOTE: bool = True
 

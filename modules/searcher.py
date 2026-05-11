@@ -53,12 +53,15 @@ class Vacancy(BaseModel):
 
 class JobSearcher:
     """
-    Ищет вакансии на hh.ru через парсинг HTML.
+    Ищет вакансии на hh.ru и Habr Career через парсинг HTML.
     Представляется как обычный браузер.
     """
 
     HH_SEARCH_URL = "https://hh.ru/search/vacancy"
     HH_VACANCY_URL = "https://hh.ru/vacancy/{}"
+
+    HABR_SEARCH_URL = "https://career.habr.com/vacancies"
+    HABR_BASE_URL   = "https://career.habr.com"
 
     # Слова в названии вакансии, которые точно не AI/prompt — фильтруем как мусор
     # Возникают когда hh.ru находит слово "промт" в названии компании (напр. Промтрейдсервис)
@@ -316,30 +319,203 @@ class JobSearcher:
 
         return vacancies
 
-    def search_all_queries(self, enrich: bool = False) -> list[Vacancy]:
+    def search_all_queries(self, enrich: bool = False, include_habr: bool = True) -> list[Vacancy]:
         """
         Запускает поиск по всем запросам из config.SEARCH_QUERIES.
+        Ищет на hh.ru и (опционально) Habr Career.
         Автоматически убирает дублирующиеся вакансии.
 
         Args:
-            enrich: Загружать ли полные описания (нужно для анализа через Gemini)
+            enrich: Загружать ли полные описания (нужно для анализа через LLM)
+            include_habr: Искать ли также на Habr Career
         """
-        # Словарь id -> Vacancy для дедупликации
         all_vacancies: dict[str, Vacancy] = {}
 
+        # Поиск на hh.ru
         for query in config.SEARCH_QUERIES:
             results = self.search_hh(query)
             for v in results:
                 if v.id not in all_vacancies:
                     all_vacancies[v.id] = v
 
+        # Поиск на Habr Career
+        if include_habr:
+            for query in config.SEARCH_QUERIES:
+                results = self.search_habr(query)
+                for v in results:
+                    if v.id not in all_vacancies:
+                        all_vacancies[v.id] = v
+
         unique_vacancies = list(all_vacancies.values())
-        print(f"\n[ИТОГО УНИКАЛЬНЫХ] {len(unique_vacancies)} вакансий по всем запросам")
+        print(f"\n[ИТОГО УНИКАЛЬНЫХ] {len(unique_vacancies)} вакансий (hh.ru + Habr Career)")
 
         if enrich:
             unique_vacancies = self.enrich_with_descriptions(unique_vacancies)
 
         return unique_vacancies
+
+    def search_habr(
+        self,
+        query: str,
+        pages: int = 2,
+    ) -> list[Vacancy]:
+        """
+        Ищет вакансии на Habr Career по поисковому запросу.
+
+        Args:
+            query: Поисковый запрос (например "AI engineer")
+            pages: Сколько страниц загружать (на каждой ~25 вакансий)
+
+        Returns:
+            Список объектов Vacancy
+        """
+        import urllib3
+        urllib3.disable_warnings()
+
+        print(f"[ПОИСК] Habr Career: '{query}'")
+
+        vacancies = []
+
+        for page in range(1, pages + 1):
+            params = {
+                "q": query,
+                "type": "all",
+                "page": page,
+            }
+
+            try:
+                response = self.session.get(
+                    self.HABR_SEARCH_URL,
+                    params=params,
+                    timeout=15,
+                    verify=False,
+                )
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                print(f"  [ОШИБКА] Habr страница {page}: {e}")
+                break
+
+            soup = BeautifulSoup(response.text, "lxml")
+            cards = soup.find_all("div", class_="vacancy-card")
+
+            if not cards:
+                print(f"  [СТОП] Habr страница {page}: карточек не найдено")
+                break
+
+            print(f"  [СТР {page}] Habr: найдено карточек: {len(cards)}")
+
+            for card in cards:
+                vacancy = self._parse_habr_card(card)
+                if vacancy:
+                    vacancies.append(vacancy)
+
+            time.sleep(1.0)
+
+        print(f"[ИТОГО] Habr '{query}': {len(vacancies)} вакансий")
+
+        # Дедупликация
+        seen: dict[str, Vacancy] = {}
+        for v in vacancies:
+            if v.id not in seen:
+                seen[v.id] = v
+        return list(seen.values())
+
+    def _parse_habr_card(self, card) -> Optional[Vacancy]:
+        """Парсит одну карточку вакансии с Habr Career."""
+        try:
+            # Название и ссылка
+            title_tag = card.find("a", class_="vacancy-card__title-link")
+            if not title_tag:
+                return None
+
+            title = title_tag.get_text(strip=True)
+            path  = title_tag.get("href", "")
+            if not path:
+                return None
+
+            # ID из пути /vacancies/1000XXXXXX
+            id_match = re.search(r"/vacancies/(\d+)", path)
+            if not id_match:
+                return None
+            vacancy_id = f"habr_{id_match.group(1)}"
+            url = f"{self.HABR_BASE_URL}{path}"
+
+            # Компания — убираем emoji и лишние пробелы
+            comp_tag = card.find("a", class_=lambda x: x and "link-comp" in x)
+            company = re.sub(r"[^\w\s\-\.]", "", comp_tag.get_text(strip=True)).strip() if comp_tag else "Не указана"
+
+            # Зарплата
+            salary_from, salary_to, salary_currency = self._parse_habr_salary(card)
+
+            # Мета: уровень, удалённость
+            meta_tag = card.find("div", class_=re.compile(r"vacancy-card__meta"))
+            meta_text = meta_tag.get_text(" ", strip=True).lower() if meta_tag else ""
+            is_remote = "удалённо" in meta_text or "remote" in meta_text
+
+            # Дата публикации
+            date_tag = card.find("time")
+            published_at = date_tag.get("datetime", "") if date_tag else ""
+
+            vacancy = Vacancy(
+                id=vacancy_id,
+                title=title,
+                company=company,
+                url=url,
+                salary_from=salary_from,
+                salary_to=salary_to,
+                salary_currency=salary_currency,
+                location="Удалённо" if is_remote else "Не указано",
+                remote=is_remote,
+                published_at=published_at,
+                source="habr.career",
+            )
+
+            # Те же фильтры что и для hh.ru
+            title_lower = title.lower()
+            if any(kw in title_lower for kw in self.NOISE_TITLE_KEYWORDS):
+                return None
+            if any(kw in title_lower for kw in self.SENIOR_TITLE_KEYWORDS):
+                return None
+
+            return vacancy
+
+        except (AttributeError, ValidationError):
+            return None
+
+    def _parse_habr_salary(self, card) -> tuple[Optional[int], Optional[int], Optional[str]]:
+        """
+        Парсит зарплату из карточки Habr Career.
+        Примеры: "от 4000 до 6000 $", "от 150 000 ₽", "200 000 – 300 000 ₽"
+        """
+        sal_tag = card.find(class_=re.compile(r"salary"))
+        if not sal_tag:
+            return None, None, None
+
+        text = sal_tag.get_text(strip=True).replace("\xa0", " ").replace(" ", " ")
+
+        # Валюта
+        if "$" in text or "USD" in text:
+            currency = "USD"
+        elif "€" in text or "EUR" in text:
+            currency = "EUR"
+        else:
+            currency = "RUB"
+
+        numbers = [int(n.replace(" ", "")) for n in re.findall(r"[\d][\d ]+", text) if n.strip()]
+
+        salary_from = salary_to = None
+        if "от" in text.lower() and "до" in text.lower() and len(numbers) >= 2:
+            salary_from, salary_to = numbers[0], numbers[1]
+        elif "от" in text.lower() and numbers:
+            salary_from = numbers[0]
+        elif "до" in text.lower() and numbers:
+            salary_to = numbers[0]
+        elif len(numbers) >= 2:
+            salary_from, salary_to = numbers[0], numbers[1]
+        elif len(numbers) == 1:
+            salary_from = numbers[0]
+
+        return salary_from, salary_to, currency
 
     def save_to_json(self, vacancies: list[Vacancy], filename: Optional[str] = None) -> Path:
         """
