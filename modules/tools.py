@@ -140,11 +140,16 @@ def search_vacancies(query: str) -> str:
 
 
 @tool
-def analyze_vacancies(limit: str = "10") -> str:
+def analyze_vacancies(limit: str = "20") -> str:
     """
     Анализирует найденные вакансии через LLM и оценивает их релевантность.
-    Аргумент: количество вакансий для анализа (строка с числом, по умолчанию "10").
+    Аргумент: максимальное количество вакансий для LLM-анализа (строка с числом, по умолчанию "20").
     Перед вызовом обязательно выполни search_vacancies.
+
+    Работает двухэтапно:
+      1. Быстрый keyword pre-filter (без LLM) — из всех найденных отбирает топ кандидатов
+      2. LLM-анализ только отобранных — загружает описания и анализирует через GPT
+
     Возвращает: список вакансий с оценками релевантности и рекомендациями APPLY/MAYBE/SKIP.
     """
     try:
@@ -152,21 +157,38 @@ def analyze_vacancies(limit: str = "10") -> str:
         if not vacancies:
             return "Сначала выполни search_vacancies для поиска вакансий."
 
-        n = min(int(limit), len(vacancies))
+        n_llm = min(int(limit), len(vacancies))
         searcher = _get_searcher()
         analyzer = _get_analyzer()
 
-        # Загружаем описания
-        enriched = searcher.enrich_with_descriptions(vacancies[:n])
+        # Шаг 1: keyword pre-filter (бесплатно, без LLM)
+        # Отбираем топ-(n_llm * 2) чтобы дать LLM чуть больший выбор,
+        # затем LLM-анализируем не более n_llm из них
+        pre_n = min(n_llm * 2, len(vacancies))
+        candidates = analyzer.pre_filter(vacancies, top_n=pre_n)
+        to_analyze = candidates[:n_llm]
+
+        print(f"\n[ANALYZE] Pre-filter: {len(vacancies)} → {len(candidates)} → LLM: {len(to_analyze)}")
+
+        # Шаг 2: загружаем описания только для отобранных
+        enriched = searcher.enrich_with_descriptions(to_analyze)
+
+        # Шаг 3: LLM-анализ
         analyses = analyzer.analyze_batch(enriched)
 
         _session["analyses"] = analyses
         _session["adapted"] = {}
 
         if not analyses:
-            return f"Ни одна из {n} вакансий не прошла порог релевантности {config.RELEVANCE_THRESHOLD}."
+            return (
+                f"После pre-filter отобрано {len(to_analyze)} вакансий, "
+                f"но ни одна не прошла порог релевантности {config.RELEVANCE_THRESHOLD}."
+            )
 
-        lines = [f"Проанализировано: {n} вакансий. Прошли порог: {len(analyses)}\n"]
+        lines = [
+            f"Всего найдено: {len(vacancies)} | После keyword-фильтра: {len(candidates)} "
+            f"| LLM проанализировано: {len(to_analyze)} | Прошли порог: {len(analyses)}\n"
+        ]
         for i, a in enumerate(analyses, 1):
             lines.append(
                 f"{i}. {a.vacancy_title} | {a.company} | "

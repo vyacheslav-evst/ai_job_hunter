@@ -255,6 +255,88 @@ class VacancyAnalyzer:
 
         return None
 
+    # ── Pre-filter (без LLM) ────────────────────────────────────────────────
+
+    # Ключевые слова разбиты по уровню веса
+    _KW_HIGH = [
+        "prompt engineer", "llm engineer", "ai engineer", "ai trainer",
+        "nlp engineer", "llm developer", "ai автоматизация", "conversational ai",
+        "prompt", "llm", "langchain", "langgraph", "rag", "gpt", "openai",
+        "claude", "gemini", "ai агент", "ai agent",
+    ]
+    _KW_MED = [
+        "python", "машинное обучение", "machine learning", "нейросет",
+        "neural", "автоматизация", "chatbot", "чат-бот", "nlp", "ml",
+        "data science", "computer vision", "ai", "нейронн",
+    ]
+    _KW_NEG_SENIOR = [
+        "senior", "ведущий", "lead", "principal", "3+ лет", "3 года",
+        "4+ лет", "5+ лет", "руководител", "тим лид", "team lead",
+        "архитект", "chief",
+    ]
+    _KW_NEG_UNRELATED = [
+        "водитель", "продавец", "кассир", "уборщик", "охранник",
+        "менеджер по продажам", "бухгалтер", "юрист", "медик",
+        "грузчик", "курьер", "сварщик", "слесарь",
+    ]
+
+    def keyword_score(self, vacancy: "Vacancy") -> int:
+        """
+        Быстрый скоринг вакансии по ключевым словам без LLM (0–100).
+        Использует только title + requirements (поля, доступные без загрузки описания).
+        """
+        text = (vacancy.title + " " + vacancy.requirements).lower()
+
+        score = 0
+
+        # Негативные фильтры — сразу 0
+        for kw in self._KW_NEG_UNRELATED:
+            if kw in text:
+                return 0
+
+        # Жёсткое снижение за senior-уровень
+        senior_penalty = sum(1 for kw in self._KW_NEG_SENIOR if kw in text)
+        if senior_penalty >= 2:
+            return 5  # почти гарантированный SKIP
+
+        # Высокий вес — прямое попадание
+        high_hits = sum(1 for kw in self._KW_HIGH if kw in text)
+        score += min(high_hits * 20, 60)
+
+        # Средний вес
+        med_hits = sum(1 for kw in self._KW_MED if kw in text)
+        score += min(med_hits * 8, 30)
+
+        # Штраф за senior (один раз)
+        if senior_penalty == 1:
+            score = int(score * 0.5)
+
+        # Бонус за junior-маркеры
+        junior_kw = ["junior", "стажёр", "стажер", "trainee", "джун", "без опыта", "начинающ"]
+        if any(kw in text for kw in junior_kw):
+            score = min(score + 20, 100)
+
+        return min(score, 100)
+
+    def pre_filter(self, vacancies: list["Vacancy"], top_n: int = 30) -> list["Vacancy"]:
+        """
+        Быстрый pre-filter: сортирует вакансии по keyword_score,
+        отбирает топ-N с score > 0 без единого LLM-вызова.
+        """
+        scored = [(v, self.keyword_score(v)) for v in vacancies]
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        filtered = [(v, s) for v, s in scored if s > 0]
+        top = filtered[:top_n]
+
+        print(f"\n[PRE-FILTER] {len(vacancies)} вакансий → топ-{len(top)} после keyword-скоринга")
+        for v, s in top[:10]:
+            print(f"  score={s:3d}  {v.title[:45]} | {v.company[:30]}")
+        if len(top) > 10:
+            print(f"  ... ещё {len(top) - 10}")
+
+        return [v for v, _ in top]
+
     def analyze_batch(self, vacancies: list[Vacancy]) -> list[VacancyAnalysis]:
         """
         Анализирует список вакансий и возвращает только те,
