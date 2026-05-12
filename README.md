@@ -252,8 +252,7 @@ RELEVANCE_THRESHOLD=45        # Минимальный score для включе
 - [x] **LangGraph ReAct-агент (`/auto`) — полный цикл одной командой**
 - [x] **7 LangChain @tool инструментов**
 - [x] **PDF-пакет: три документа автоматически**
-- [ ] Парсинг Habr Career
-- [ ] Демо-видео / GIF
+- [x] Парсинг Habr Career
 
 ---
 
