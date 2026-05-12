@@ -11,13 +11,17 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
 
+# Принудительно включаем UTF-8 для корректного вывода в Windows
+os.environ.setdefault("PYTHONUTF8", "1")
 
-# ─── OpenRouter (основной LLM провайдер) ──────────────────────────────────────
-# OpenRouter даёт доступ к сотням моделей через единый OpenAI-совместимый API.
-# Бесплатные модели помечены суффиксом :free
+
+# ─── OpenAI API ───────────────────────────────────────────────────────────────
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+# ─── OpenRouter (устарело, оставлено для обратной совместимости) ──────────────
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL: str = "https://api.openai.com/v1"
-LLM_MODEL: str = os.getenv("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
 
 # ─── Google Gemini (устарело, оставлено для обратной совместимости) ───────────
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
@@ -117,7 +121,7 @@ def apply_proxy():
 
 def validate_config() -> bool:
     """Проверяет что обязательные ключи заполнены."""
-    if not OPENROUTER_API_KEY:
-        print("[CONFIG] ОШИБКА: OPENROUTER_API_KEY не задан в .env файле")
+    if not OPENAI_API_KEY:
+        print("[CONFIG] ОШИБКА: OPENAI_API_KEY не задан в .env файле")
         return False
     return True

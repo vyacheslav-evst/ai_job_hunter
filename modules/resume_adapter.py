@@ -9,8 +9,9 @@ from typing import Optional
 from datetime import datetime
 
 import config
-from modules.llm_client import LLMClient
 from modules.analyzer import VacancyAnalysis
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 class ResumeAdapter:
@@ -21,7 +22,13 @@ class ResumeAdapter:
     """
 
     def __init__(self) -> None:
-        print(f"[ADAPTER] Инициализирован. Модель: {self.llm.model}")
+        self.llm = ChatOpenAI(
+            model=config.LLM_MODEL,
+            api_key=config.OPENAI_API_KEY,
+            temperature=0.3,
+        )
+        self.base_resume = self._load_base_resume()
+        print(f"[ADAPTER] Инициализирован. Модель: {config.LLM_MODEL}")
 
     def _load_base_resume(self) -> dict:
         """Загружает базовое резюме из файла."""
@@ -90,10 +97,25 @@ class ResumeAdapter:
 }}"""
 
         try:
-            adapted = self.llm.chat_json(prompt, temperature=0.3, max_tokens=2000)
+            messages = [
+                SystemMessage(content="Ты — карьерный консультант. Отвечай ТОЛЬКО валидным JSON без ```json обёрток."),
+                HumanMessage(content=prompt),
+            ]
+            response = self.llm.invoke(messages)
+            raw_text = response.content
 
-            if not adapted:
+            if not raw_text:
                 raise ValueError("Пустой ответ от LLM")
+
+            # Парсим JSON из ответа
+            import re
+            raw_text = re.sub(r"```json\s*", "", raw_text)
+            raw_text = re.sub(r"```\s*", "", raw_text).strip()
+            match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+            if match:
+                adapted = json.loads(match.group())
+            else:
+                adapted = json.loads(raw_text)
 
             # Добавляем неизменяемые личные данные из базового резюме
             adapted["personal"] = self.base_resume.get("personal", {})

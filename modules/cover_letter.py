@@ -10,8 +10,9 @@ from typing import Optional
 from datetime import datetime
 
 import config
-from modules.llm_client import LLMClient
 from modules.analyzer import VacancyAnalysis
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 # Шаблон письма для fallback (когда нет доступа к Gemini)
@@ -38,7 +39,13 @@ class CoverLetterGenerator:
     """
 
     def __init__(self) -> None:
-        print(f"[COVER] Инициализирован. Модель: {self.llm.model}")
+        self.llm = ChatOpenAI(
+            model=config.LLM_MODEL,
+            api_key=config.OPENAI_API_KEY,
+            temperature=0.7,
+        )
+        self.base_resume = self._load_resume()
+        print(f"[COVER] Инициализирован. Модель: {config.LLM_MODEL}")
 
     def _load_resume(self) -> dict:
         """Загружает базовое резюме."""
@@ -132,12 +139,12 @@ Email: {personal.get('email_primary', 'slavarax@gmail.com')}
 Письмо:"""
 
         try:
-            letter = self.llm.chat(
-                prompt=prompt,
-                temperature=0.7,
-                max_tokens=800,
-                system="Ты — карьерный консультант. Пишешь живые, убедительные письма на русском языке.",
-            )
+            messages = [
+                SystemMessage(content="Ты — карьерный консультант. Пишешь живые, убедительные письма на русском языке."),
+                HumanMessage(content=prompt),
+            ]
+            response = self.llm.invoke(messages)
+            letter = response.content
 
             if not letter:
                 raise ValueError("Пустой ответ от LLM")

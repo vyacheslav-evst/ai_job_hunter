@@ -17,6 +17,12 @@ import json
 import webbrowser
 from pathlib import Path
 
+# Принудительно устанавливаем UTF-8 для вывода в Windows
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 # Добавляем корень проекта в путь (для импорта config и modules)
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -26,6 +32,7 @@ from modules.analyzer import VacancyAnalyzer, VacancyAnalysis
 from modules.resume_adapter import ResumeAdapter
 from modules.cover_letter import CoverLetterGenerator
 from modules.exporter import Exporter
+from modules.autonomous_agent import run_autonomous_agent
 
 
 # ─── Цвета для терминала (ANSI) ───────────────────────────────────────────────
@@ -70,6 +77,7 @@ def print_help():
   {C.GREEN}/list vacancies{C.RESET}   Сырые вакансии (даже после /analyze)
   {C.GREEN}/report{C.RESET}           Создать Markdown-отчёт по результатам анализа
   {C.GREEN}/run [запрос]{C.RESET}     Полный цикл: search → analyze → report
+  {C.GREEN}/auto [запрос]{C.RESET}    Автономный AI-агент (LangGraph ReAct): сам планирует весь цикл
   {C.GREEN}/help{C.RESET}             Показать эту справку
   {C.GREEN}/quit{C.RESET}             Выйти из агента
 
@@ -117,7 +125,7 @@ class Agent:
     def analyzer(self) -> VacancyAnalyzer:
         if not self._analyzer:
             if not config.validate_config():
-                raise RuntimeError("OPENROUTER_API_KEY не задан в .env файле")
+                raise RuntimeError("OPENAI_API_KEY не задан в .env файле")
             self._analyzer = VacancyAnalyzer()
         return self._analyzer
 
@@ -447,6 +455,32 @@ class Agent:
         self.cmd_report([])
         print(f"\n{C.GREEN}{C.BOLD}[AUTO] Готово! Используй /adapt 1 и /cover 1 для лучшей вакансии.{C.RESET}")
 
+    def cmd_auto(self, args: list[str]):
+        """
+        /auto [запрос]
+        Запускает автономного LangGraph ReAct-агента.
+        Агент самостоятельно планирует и выполняет весь цикл:
+        search → analyze → adapt → cover → report.
+        """
+        if not config.validate_config():
+            print(f"{C.RED}OPENAI_API_KEY не задан в .env файле{C.RESET}")
+            return
+
+        query = " ".join(args) if args else None
+        if not query:
+            print(f"{C.YELLOW}Укажи поисковый запрос. Пример: /auto prompt engineer{C.RESET}")
+            return
+
+        print(f"\n{C.CYAN}{C.BOLD}[AUTO AGENT] Запускаю автономный агент для: '{query}'{C.RESET}")
+        print(f"{C.GRAY}Агент будет самостоятельно планировать и выполнять шаги...{C.RESET}\n")
+
+        try:
+            result = run_autonomous_agent(query, verbose=True)
+            print(f"\n{C.GREEN}{C.BOLD}[AUTO AGENT] Завершено!{C.RESET}")
+            print(f"\n{C.BOLD}Итог:{C.RESET}\n{result}")
+        except Exception as e:
+            print(f"{C.RED}Ошибка автономного агента: {e}{C.RESET}")
+
     # ── Сохранение / загрузка сессии ──────────────────────────────────────────
 
     def _session_path(self) -> Path:
@@ -549,6 +583,7 @@ def main():
         "/report":  agent.cmd_report,
         "/open":    agent.cmd_open,
         "/run":     agent.cmd_run,
+        "/auto":    agent.cmd_auto,
         "/help":    lambda _: print_help(),
     }
 

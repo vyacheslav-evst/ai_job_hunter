@@ -13,8 +13,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 import config
-from modules.llm_client import LLMClient
 from modules.searcher import Vacancy
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 # ─── Модель результата анализа (Pydantic) ─────────────────────────────────────
@@ -55,11 +56,14 @@ class VacancyAnalyzer:
     """
 
     def __init__(self) -> None:
-
+        self.llm = ChatOpenAI(
+            model=config.LLM_MODEL,
+            api_key=config.OPENAI_API_KEY,
+            temperature=0.1,
+        )
         # Загружаем базовое резюме кандидата
         self.resume = self._load_resume()
-
-        print(f"[ANALYZER] Инициализирован. Модель: {self.llm.model}")
+        print(f"[ANALYZER] Инициализирован. Модель: {config.LLM_MODEL}")
 
     def _load_resume(self) -> dict:
         """Загружает базовое резюме из memory/base_resume.json."""
@@ -170,18 +174,21 @@ class VacancyAnalyzer:
 - В bonus_points укажи конкретные проекты кандидата которые релевантны этой вакансии"""
 
         try:
-            raw_text = self.llm.chat_json(prompt)
+            messages = [
+                SystemMessage(content="Ты — карьерный аналитик. Отвечай ТОЛЬКО валидным JSON без ```json обёрток."),
+                HumanMessage(content=prompt),
+            ]
+            response = self.llm.invoke(messages)
+            raw_str = response.content
 
+            if not raw_str:
+                print(f"    [ОШИБКА] Пустой ответ от LLM")
+                return None
+
+            raw_text = self._parse_json_response(raw_str)
             if not raw_text:
-                # chat_json вернул None — пробуем chat() + ручной парсинг
-                raw_str = self.llm.chat(prompt, temperature=0.1)
-                if not raw_str:
-                    print(f"    [ОШИБКА] Пустой ответ от LLM")
-                    return None
-                raw_text = self._parse_json_response(raw_str)
-                if not raw_text:
-                    print(f"    [ОШИБКА] Не удалось распарсить JSON из ответа LLM")
-                    return None
+                print(f"    [ОШИБКА] Не удалось распарсить JSON из ответа LLM")
+                return None
 
             analysis_dict = raw_text
 
@@ -229,7 +236,7 @@ class VacancyAnalyzer:
         Returns:
             Отфильтрованный и отсортированный список анализов
         """
-        print(f"\n[BATCH АНАЛИЗ] {len(vacancies)} вакансий через {self.llm.model}")
+        print(f"\n[BATCH АНАЛИЗ] {len(vacancies)} вакансий через {config.LLM_MODEL}")
         print(f"[ПОРОГ] Минимальный score: {config.RELEVANCE_THRESHOLD}")
 
         results = []
@@ -268,7 +275,7 @@ class VacancyAnalyzer:
 
         data = {
             "generated_at": datetime.now().isoformat(),
-            "model": self.llm.model,
+            "model": config.LLM_MODEL,
             "threshold": config.RELEVANCE_THRESHOLD,
             "total_passed": len(analyses),
             "analyses": [a.model_dump() for a in analyses],

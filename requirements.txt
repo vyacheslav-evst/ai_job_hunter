@@ -1,7 +1,12 @@
 # Переменные окружения
 python-dotenv==1.0.1
 
-# LLM (OpenAI-совместимый API)
+# LLM (OpenAI + LangChain)
+langchain-openai>=0.1.0
+langchain-core>=0.2.0
+langgraph>=0.1.0
+
+# HTTP (для парсинга hh.ru)
 requests==2.32.3
 urllib3
 
@@ -20,3 +25,4 @@ streamlit>=1.35.0
 
 # Работа с датами
 python-dateutil==2.9.0
+
