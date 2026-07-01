@@ -46,6 +46,28 @@ HH_BASE_URL: str = "https://api.hh.ru"
 
 # Пресеты запросов для разных профессий
 PROFESSION_PRESETS: dict[str, list[str]] = {
+    "AI/ML + Python Junior": [
+        # AI / LLM
+        "prompt engineer",
+        "AI engineer",
+        "LLM engineer",
+        "NLP engineer",
+        "conversational AI",
+        "AI trainer",
+        "AI content specialist",
+        "LLM developer",
+        "AI автоматизация",
+        "чат-бот разработчик",
+        "ML инженер junior",
+        # Python junior
+        "python developer",
+        "python разработчик",
+        "backend python",
+        "django developer",
+        "fastapi developer",
+        "python junior",
+        "python junior разработчик",
+    ],
     "AI/ML Engineer": [
         "prompt engineer",
         "AI engineer",
@@ -86,7 +108,7 @@ PROFESSION_PRESETS: dict[str, list[str]] = {
 }
 
 # Активный пресет (можно переопределить через .env PROFESSION_PRESET)
-_preset_name: str = os.getenv("PROFESSION_PRESET", "AI/ML Engineer")
+_preset_name: str = os.getenv("PROFESSION_PRESET", "AI/ML + Python Junior")
 SEARCH_QUERIES: list[str] = PROFESSION_PRESETS.get(_preset_name, PROFESSION_PRESETS["AI/ML Engineer"])
 ACTIVE_PROFESSION: str = _preset_name if _preset_name in PROFESSION_PRESETS else "AI/ML Engineer"
 

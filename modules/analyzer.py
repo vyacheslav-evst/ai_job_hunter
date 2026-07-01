@@ -260,15 +260,22 @@ class VacancyAnalyzer:
 
     # Ключевые слова разбиты по уровню веса
     _KW_HIGH = [
+        # AI / LLM
         "prompt engineer", "llm engineer", "ai engineer", "ai trainer",
         "nlp engineer", "llm developer", "ai автоматизация", "conversational ai",
         "prompt", "llm", "langchain", "langgraph", "rag", "gpt", "openai",
         "claude", "gemini", "ai агент", "ai agent",
+        # Python junior / backend
+        "python junior", "python developer", "python разработчик",
+        "backend python", "fastapi", "django",
     ]
     _KW_MED = [
         "python", "машинное обучение", "machine learning", "нейросет",
         "neural", "автоматизация", "chatbot", "чат-бот", "nlp", "ml",
         "data science", "computer vision", "ai", "нейронн",
+        "flask", "api", "backend", "разработчик", "developer",
+        "asyncio", "aiogram", "telegram бот",
+        "docker", "pytest", "rest api",
     ]
     _KW_NEG_SENIOR = [
         "senior", "ведущий", "lead", "principal", "3+ лет", "3 года",
@@ -279,6 +286,13 @@ class VacancyAnalyzer:
         "водитель", "продавец", "кассир", "уборщик", "охранник",
         "менеджер по продажам", "бухгалтер", "юрист", "медик",
         "грузчик", "курьер", "сварщик", "слесарь",
+        # IT, но не наш профиль
+        "1с", "1c разработчик", "администратор", "devops",
+        "qa инженер", "qa engineer", "тестировщик", "автоматизатор тестирования",
+        "frontend разработчик", "react разработчик", "vue разработчик",
+        "мобильн", "ios разработчик", "android разработчик", "flutter",
+        "дизайнер", "верстальщик", "project manager", "product manager",
+        "аналитик", "data scientist",
     ]
 
     def keyword_score(self, vacancy: "Vacancy") -> int:
