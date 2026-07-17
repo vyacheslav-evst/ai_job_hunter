@@ -15,7 +15,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 
-# Шаблон письма для fallback (когда нет доступа к Gemini)
+# Шаблон письма для fallback (когда нет доступа к LLM)
 FALLBACK_TEMPLATE = """Здравствуйте!
 
 Меня зовут {name}, и я хотел бы откликнуться на вакансию «{vacancy_title}» в компании {company}.
@@ -34,7 +34,7 @@ FALLBACK_TEMPLATE = """Здравствуйте!
 
 class CoverLetterGenerator:
     """
-    Генерирует сопроводительные письма через Gemini.
+    Генерирует сопроводительные письма через LLM.
     Письмо персонализировано под конкретную вакансию и компанию.
     """
 
@@ -158,7 +158,7 @@ Email: {personal.get('email_primary', 'slavarax@gmail.com')}
 
     def _fallback_letter(self, analysis: VacancyAnalysis) -> str:
         """
-        Генерирует письмо по шаблону если Gemini недоступен.
+        Генерирует письмо по шаблону если LLM недоступен.
         Используется как запасной вариант.
         """
         personal = self.base_resume.get("personal", {})
@@ -228,7 +228,7 @@ if __name__ == "__main__":
 
     generator = CoverLetterGenerator()
 
-    # Тест fallback (без Gemini)
+    # Тест fallback (без LLM)
     letter = generator._fallback_letter(test_analysis)
     print("\n[FALLBACK ПИСЬМО]")
     print(letter)

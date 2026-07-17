@@ -5,7 +5,6 @@ tools.py — LangChain @tool обёртки для всех модулей AI Jo
 что соответствует интерфейсу ReAct-агента.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -14,61 +13,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from langchain_core.tools import tool
 
 import config
-from modules.searcher import JobSearcher
-from modules.analyzer import VacancyAnalyzer
-from modules.resume_adapter import ResumeAdapter
-from modules.cover_letter import CoverLetterGenerator
-from modules.exporter import Exporter
+from modules.service import JobHunterService
 
-# ─── Ленивые синглтоны модулей (инициализируем один раз) ─────────────────────
-
-_searcher: JobSearcher | None = None
-_analyzer: VacancyAnalyzer | None = None
-_adapter: ResumeAdapter | None = None
-_cover_gen: CoverLetterGenerator | None = None
-_exporter: Exporter | None = None
-
-# Разделяемое состояние сессии (агент работает со списками в памяти)
-_session: dict = {
-    "vacancies": [],    # list[Vacancy]
-    "analyses": [],     # list[VacancyAnalysis]
-    "adapted": {},      # vacancy_id -> dict
-}
+# Единый экземпляр сервиса для всех инструментов агента
+_service: JobHunterService | None = None
 
 
-def _get_searcher() -> JobSearcher:
-    global _searcher
-    if not _searcher:
-        _searcher = JobSearcher()
-    return _searcher
-
-
-def _get_analyzer() -> VacancyAnalyzer:
-    global _analyzer
-    if not _analyzer:
-        _analyzer = VacancyAnalyzer()
-    return _analyzer
-
-
-def _get_adapter() -> ResumeAdapter:
-    global _adapter
-    if not _adapter:
-        _adapter = ResumeAdapter()
-    return _adapter
-
-
-def _get_cover_gen() -> CoverLetterGenerator:
-    global _cover_gen
-    if not _cover_gen:
-        _cover_gen = CoverLetterGenerator()
-    return _cover_gen
-
-
-def _get_exporter() -> Exporter:
-    global _exporter
-    if not _exporter:
-        _exporter = Exporter()
-    return _exporter
+def _get_service() -> JobHunterService:
+    """Ленивая инициализация сервиса."""
+    global _service
+    if not _service:
+        _service = JobHunterService()
+    return _service
 
 
 # ─── Инструменты ──────────────────────────────────────────────────────────────
@@ -83,7 +39,7 @@ def search_vacancies(query: str) -> str:
     Возвращает: краткий список найденных вакансий с названием и компанией.
     """
     try:
-        searcher = _get_searcher()
+        service = _get_service()
 
         # Составляем список запросов: пользовательский + близкие из пресета AI/ML
         AI_RELATED_QUERIES = [
@@ -105,22 +61,21 @@ def search_vacancies(query: str) -> str:
         seen_ids: dict[str, object] = {}
 
         for q in queries_to_run:
-            # hh.ru
-            for v in searcher.search_hh(q, pages=3):
+            results = service.searcher.search_hh(q, pages=3)
+            for v in results:
                 if v.id not in seen_ids:
                     seen_ids[v.id] = v
-            # Habr Career
-            for v in searcher.search_habr(q, pages=2):
+            results = service.searcher.search_habr(q, pages=2)
+            for v in results:
                 if v.id not in seen_ids:
                     seen_ids[v.id] = v
 
         vacancies = list(seen_ids.values())
+        service.vacancies = vacancies
+        service.analyses = []
 
         if not vacancies:
             return f"Вакансии по запросу '{query}' (и связанным запросам) не найдены."
-
-        _session["vacancies"] = vacancies
-        _session["analyses"] = []
 
         hh_count = sum(1 for v in vacancies if v.source == "hh.ru")
         habr_count = sum(1 for v in vacancies if v.source == "habr.career")
@@ -154,41 +109,23 @@ def analyze_vacancies(limit: str = "20") -> str:
     Возвращает: список вакансий с оценками релевантности и рекомендациями APPLY/MAYBE/SKIP.
     """
     try:
-        vacancies = _session.get("vacancies", [])
+        service = _get_service()
+        vacancies = service.vacancies
         if not vacancies:
             return "Сначала выполни search_vacancies для поиска вакансий."
 
         n_llm = min(int(limit), len(vacancies))
-        searcher = _get_searcher()
-        analyzer = _get_analyzer()
-
-        # Шаг 1: keyword pre-filter (бесплатно, без LLM)
-        # Отбираем топ-(n_llm * 2) чтобы дать LLM чуть больший выбор,
-        # затем LLM-анализируем не более n_llm из них
-        pre_n = min(n_llm * 2, len(vacancies))
-        candidates = analyzer.pre_filter(vacancies, top_n=pre_n)
-        to_analyze = candidates[:n_llm]
-
-        print(f"\n[ANALYZE] Pre-filter: {len(vacancies)} → {len(candidates)} → LLM: {len(to_analyze)}")
-
-        # Шаг 2: загружаем описания только для отобранных
-        enriched = searcher.enrich_with_descriptions(to_analyze)
-
-        # Шаг 3: LLM-анализ
-        analyses = analyzer.analyze_batch(enriched)
-
-        _session["analyses"] = analyses
-        _session["adapted"] = {}
+        analyses = service.analyze(limit=n_llm)
 
         if not analyses:
             return (
-                f"После pre-filter отобрано {len(to_analyze)} вакансий, "
+                f"Проанализировано {n_llm} вакансий, "
                 f"но ни одна не прошла порог релевантности {config.RELEVANCE_THRESHOLD}."
             )
 
         lines = [
-            f"Всего найдено: {len(vacancies)} | После keyword-фильтра: {len(candidates)} "
-            f"| LLM проанализировано: {len(to_analyze)} | Прошли порог: {len(analyses)}\n"
+            f"Найдено: {len(vacancies)} | LLM проанализировано: {n_llm} "
+            f"| Прошли порог: {len(analyses)}\n"
         ]
         for i, a in enumerate(analyses, 1):
             lines.append(
@@ -209,7 +146,8 @@ def adapt_resume(vacancy_number: str) -> str:
     Возвращает: краткое описание адаптированного резюме.
     """
     try:
-        analyses = _session.get("analyses", [])
+        service = _get_service()
+        analyses = service.analyses
         if not analyses:
             return "Сначала выполни analyze_vacancies."
 
@@ -218,11 +156,7 @@ def adapt_resume(vacancy_number: str) -> str:
             return f"Номер должен быть от 1 до {len(analyses)}."
 
         analysis = analyses[idx]
-        adapter = _get_adapter()
-        adapted = adapter.adapt(analysis)
-        adapter.save(adapted)
-
-        _session["adapted"][analysis.vacancy_id] = adapted
+        adapted = service.adapt_resume(analysis)
 
         return (
             f"Резюме адаптировано под: {analysis.vacancy_title} | {analysis.company}\n"
@@ -244,7 +178,8 @@ def generate_cover_letter(vacancy_number: str, tone: str = "professional") -> st
     Возвращает: текст сопроводительного письма и путь к сохранённому файлу.
     """
     try:
-        analyses = _session.get("analyses", [])
+        service = _get_service()
+        analyses = service.analyses
         if not analyses:
             return "Сначала выполни analyze_vacancies."
 
@@ -253,15 +188,10 @@ def generate_cover_letter(vacancy_number: str, tone: str = "professional") -> st
             return f"Номер должен быть от 1 до {len(analyses)}."
 
         analysis = analyses[idx]
-        adapted = _session["adapted"].get(analysis.vacancy_id)
-
-        cover_gen = _get_cover_gen()
-        letter = cover_gen.generate(analysis, adapted_resume=adapted, tone=tone)
-        path = cover_gen.save(letter, analysis)
+        letter = service.generate_cover_letter(analysis, tone=tone)
 
         return (
-            f"Письмо готово для: {analysis.company}\n"
-            f"Сохранено: {path}\n\n"
+            f"Письмо готово для: {analysis.company}\n\n"
             f"--- ПИСЬМО ---\n{letter[:600]}{'...' if len(letter) > 600 else ''}"
         )
     except Exception as e:
@@ -277,13 +207,12 @@ def export_report(format: str = "md") -> str:
     Возвращает: путь к созданному файлу отчёта.
     """
     try:
-        analyses = _session.get("analyses", [])
-        if not analyses:
+        service = _get_service()
+        if not service.analyses:
             return "Нет данных для отчёта. Сначала выполни analyze_vacancies."
 
-        exporter = _get_exporter()
-        path = exporter.export_analysis_md(analyses)
-        return f"Отчёт создан: {path}\nВакансий в отчёте: {len(analyses)}"
+        path = service.export_report()
+        return f"Отчёт создан: {path}\nВакансий в отчёте: {len(service.analyses)}"
     except Exception as e:
         return f"Ошибка создания отчёта: {e}"
 
@@ -299,48 +228,27 @@ def export_all_pdf() -> str:
     Возвращает пути к созданным PDF-файлам.
     """
     try:
-        analyses = _session.get("analyses", [])
-        adapted_map = _session.get("adapted", {})
-        exporter = _get_exporter()
-        results = []
+        service = _get_service()
 
-        # 1. Отчёт по вакансиям
-        if analyses:
-            path = exporter.export_analysis_pdf(analyses)
+        if not service.analyses:
+            return "Нет данных (сначала выполни analyze_vacancies)"
+
+        # Берём первый проанализированный анализ (лучший по score)
+        analysis = service.analyses[0]
+        adapted = service.adapted_resumes.get(analysis.vacancy_id)
+        letter = service.cover_letters.get(analysis.vacancy_id)
+
+        results_dict = service.export_pdf_package(analysis, adapted, letter)
+
+        lines = ["PDF-пакет готов:"]
+        for key, path in results_dict.items():
+            label = {"report": "Отчёт", "resume": "Резюме", "cover": "Письмо"}.get(key, key)
             if path:
-                results.append(f"Отчёт:  {path}")
-        else:
-            results.append("Отчёт: нет данных (сначала выполни analyze_vacancies)")
-
-        # 2. Резюме — берём первое адаптированное
-        if adapted_map:
-            adapted = next(iter(adapted_map.values()))
-            path = exporter.export_resume_pdf(adapted)
-            if path:
-                results.append(f"Резюме: {path}")
-        else:
-            results.append("Резюме: не адаптировано (сначала выполни adapt_resume)")
-
-        # 3. Сопроводительное письмо — читаем из сохранённого MD-файла
-        cover_path = None
-        if adapted_map and analyses:
-            # Ищем последний сохранённый .md файл письма
-            import config as _cfg
-            cover_files = sorted(_cfg.OUTPUT_DIR.glob("cover_*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
-            if cover_files:
-                letter_text = cover_files[0].read_text(encoding="utf-8")
-                # Берём анализ для самого лучшего адаптированного
-                best_id = next(iter(adapted_map))
-                best_analysis = next((a for a in analyses if a.vacancy_id == best_id), analyses[0])
-                path = exporter.export_cover_letter_pdf(letter_text, best_analysis)
-                if path:
-                    results.append(f"Письмо: {path}")
+                lines.append(f"  {label}: {path}")
             else:
-                results.append("Письмо: MD-файл не найден")
-        else:
-            results.append("Письмо: нет данных")
+                lines.append(f"  {label}: не создан")
 
-        return "PDF-пакет готов:\n" + "\n".join(results)
+        return "\n".join(lines)
     except Exception as e:
         return f"Ошибка генерации PDF: {e}"
 
@@ -352,9 +260,10 @@ def get_session_state() -> str:
     результатов анализа и адаптированных резюме.
     Используй для проверки прогресса перед следующим шагом.
     """
-    vacancies = _session.get("vacancies", [])
-    analyses = _session.get("analyses", [])
-    adapted = _session.get("adapted", {})
+    service = _get_service()
+    vacancies = service.vacancies
+    analyses = service.analyses
+    adapted = service.adapted_resumes
 
     apply_count = sum(1 for a in analyses if a.recommendation == "APPLY")
     maybe_count = sum(1 for a in analyses if a.recommendation == "MAYBE")

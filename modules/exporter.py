@@ -220,19 +220,7 @@ class Exporter:
         pdf = FPDF()
         pdf.add_page()
 
-        # Используем Arial из системных шрифтов Windows — поддерживает кириллицу
-        import os
-        arial_path     = r"C:\Windows\Fonts\arial.ttf"
-        arial_bold_path = r"C:\Windows\Fonts\arialbd.ttf"
-
-        if os.path.exists(arial_path):
-            pdf.add_font("Arial", "", arial_path)
-            pdf.add_font("Arial", "B", arial_bold_path)
-            font_name = "Arial"
-        else:
-            # Fallback: встроенный Helvetica (без кириллицы)
-            font_name = "Helvetica"
-            print("[PDF] Предупреждение: Arial не найден, кириллица может не отображаться.")
+        font_name = self._init_pdf_fonts(pdf)
 
         # ── Заголовок ─────────────────────────────────────────────────────────
         pdf.set_font(font_name, "B", 18)
@@ -313,13 +301,40 @@ class Exporter:
 
     def _init_pdf_fonts(self, pdf) -> str:
         """Инициализирует шрифты PDF с поддержкой кириллицы. Возвращает имя шрифта."""
-        import os
-        arial_path = r"C:\Windows\Fonts\arial.ttf"
-        arial_bold_path = r"C:\Windows\Fonts\arialbd.ttf"
-        if os.path.exists(arial_path):
-            pdf.add_font("Arial", "", arial_path)
-            pdf.add_font("Arial", "B", arial_bold_path)
-            return "Arial"
+        import platform
+
+        # Кандидаты шрифтов для разных ОС (порядок приоритета)
+        font_candidates = []
+
+        if platform.system() == "Windows":
+            font_candidates = [
+                (r"C:\Windows\Fonts\arial.ttf", r"C:\Windows\Fonts\arialbd.ttf"),
+                (r"C:\Windows\Fonts\verdana.ttf", r"C:\Windows\Fonts\verdanab.ttf"),
+            ]
+        elif platform.system() == "Darwin":  # macOS
+            font_candidates = [
+                ("/System/Library/Fonts/Helvetica.ttc", "/System/Library/Fonts/Helvetica.ttc"),
+                ("/Library/Fonts/Arial.ttf", "/Library/Fonts/Arial Bold.ttf"),
+                ("/System/Library/Fonts/SFNSText.ttf", "/System/Library/Fonts/SFNSText.ttf"),
+            ]
+        else:  # Linux
+            font_candidates = [
+                ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+                ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                 "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+                ("/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+                 "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"),
+            ]
+
+        for regular_path, bold_path in font_candidates:
+            if Path(regular_path).exists():
+                pdf.add_font("CustomFont", "", regular_path)
+                if Path(bold_path).exists():
+                    pdf.add_font("CustomFont", "B", bold_path)
+                return "CustomFont"
+
+        print("[PDF] Предупреждение: шрифт с кириллицей не найден, текст может не отображаться.")
         return "Helvetica"
 
     def export_cover_letter_pdf(self, letter: str, analysis: "VacancyAnalysis", filename: str = None) -> Optional[Path]:
@@ -461,10 +476,10 @@ if __name__ == "__main__":
         "company": "TechCorp",
         "adapted_summary": "Junior Prompt Engineer с практическим опытом проектирования LLM-пайплайнов. "
                            "Создал vacancy-prompt-system — 5-этапный пайплайн с anti-hallucination техниками. "
-                           "Строю AI-агентов на Python + Gemini API.",
+                           "Строю AI-агентов на Python + OpenAI API.",
         "top_skills": [
             "Prompt Engineering (few-shot, chain-of-thought)",
-            "Google Gemini API / GPT-4o",
+            "OpenAI API / GPT-4o",
             "Python 3.x — requests, Pydantic, BeautifulSoup",
             "Anti-hallucination техники",
             "JSON Schema / структурированный вывод",
@@ -478,8 +493,8 @@ if __name__ == "__main__":
             },
             {
                 "name": "AI Job Hunter Agent",
-                "description": "Автономный агент поиска вакансий на Python + Gemini API.",
-                "highlights": ["Парсинг hh.ru", "Анализ через Gemini", "CLI-интерфейс"],
+                "description": "Автономный агент поиска вакансий на Python + OpenAI API.",
+                "highlights": ["Парсинг hh.ru", "Анализ через LLM", "CLI-интерфейс"],
             },
         ],
         "additional_skills": ["Three.js (базовый)", "HTML/CSS/JS", "Netlify"],

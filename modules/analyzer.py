@@ -22,7 +22,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 # ─── Модель результата анализа (Pydantic) ─────────────────────────────────────
 
 class VacancyAnalysis(BaseModel):
-    """Результат анализа одной вакансии через Gemini."""
+    """Результат анализа одной вакансии через LLM."""
 
     vacancy_id: str
     vacancy_title: str
@@ -52,7 +52,7 @@ class VacancyAnalysis(BaseModel):
 
 class VacancyAnalyzer:
     """
-    Анализирует вакансии через Google Gemini.
+    Анализирует вакансии через OpenAI LLM.
     Сравнивает требования вакансии с профилем кандидата из base_resume.json.
     """
 
@@ -111,7 +111,7 @@ class VacancyAnalyzer:
 
     def analyze_vacancy(self, vacancy: Vacancy) -> Optional[VacancyAnalysis]:
         """
-        Анализирует одну вакансию через Gemini.
+        Анализирует одну вакансию через LLM.
         Возвращает структурированный отчёт с рекомендацией.
 
         Args:

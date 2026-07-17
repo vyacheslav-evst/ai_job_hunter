@@ -42,7 +42,6 @@ class TestFilters:
     def test_noise_title_filtered(self, searcher):
         """NOISE_TITLE_KEYWORDS не пустой и содержит хотя бы несколько слов."""
         assert len(searcher.NOISE_TITLE_KEYWORDS) >= 3
-        # Все keyword должны быть строками
         for kw in searcher.NOISE_TITLE_KEYWORDS:
             assert isinstance(kw, str)
             assert len(kw) > 0
@@ -64,27 +63,45 @@ class TestFilters:
 
 
 class TestSalaryParsing:
-    def test_parse_habr_salary_range_usd(self, searcher):
-        """Парсинг диапазона зарплат в USD с Habr."""
-        from bs4 import BeautifulSoup
-        html = '<div class="card"><div class="basic-salary">от 4000 до 6000 $</div></div>'
-        soup = BeautifulSoup(html, "lxml")
-        card = soup.find("div", class_="card")
-        salary_from, salary_to, currency = searcher._parse_habr_salary(card)
-        assert salary_from == 4000
-        assert salary_to == 6000
-        assert currency == "USD"
+    def test_parse_salary_range_usd(self, searcher):
+        """Парсинг диапазона зарплат в USD."""
+        f, t, c = searcher._parse_salary_text("от 4000 до 6000 $")
+        assert f == 4000
+        assert t == 6000
+        assert c == "USD"
 
-    def test_parse_habr_salary_from_only(self, searcher):
-        """Парсинг зарплаты 'от X' с Habr."""
-        from bs4 import BeautifulSoup
-        html = '<div class="card"><div class="basic-salary">от 150 000 ₽</div></div>'
-        soup = BeautifulSoup(html, "lxml")
-        card = soup.find("div", class_="card")
-        salary_from, salary_to, currency = searcher._parse_habr_salary(card)
-        assert salary_from == 150000
-        assert salary_to is None
-        assert currency == "RUB"
+    def test_parse_salary_from_only_rub(self, searcher):
+        """Парсинг зарплаты 'от X' в RUB."""
+        f, t, c = searcher._parse_salary_text("от 150 000 ₽")
+        assert f == 150000
+        assert t is None
+        assert c == "RUB"
+
+    def test_parse_salary_to_only(self, searcher):
+        """Парсинг зарплаты 'до X'."""
+        f, t, c = searcher._parse_salary_text("до 200 000 руб.")
+        assert f is None
+        assert t == 200000
+        assert c == "RUB"
+
+    def test_parse_salary_range_eur(self, searcher):
+        """Парсинг диапазона в EUR."""
+        f, t, c = searcher._parse_salary_text("3000 – 5000 €")
+        assert f == 3000
+        assert t == 5000
+        assert c == "EUR"
+
+    def test_parse_salary_empty(self, searcher):
+        """Пустая строка зарплаты."""
+        f, t, c = searcher._parse_salary_text("")
+        assert f is None
+        assert t is None
+        assert c is None
+
+    def test_parse_salary_none(self, searcher):
+        """None зарплата."""
+        f, t, c = searcher._parse_salary_text(None)
+        assert f is None
 
 
 class TestConfig:
@@ -104,9 +121,29 @@ class TestKeywordScore:
     """Тесты для быстрого keyword-скоринга без LLM."""
 
     @pytest.fixture
-    def analyzer(self):
-        from modules.analyzer import VacancyAnalyzer
-        return VacancyAnalyzer()
+    def analyzer(self, tmp_path, monkeypatch):
+        """Создаёт VacancyAnalyzer с моканным LLM и резюме."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        # Создаём минимальное резюме
+        resume = {
+            "personal": {"name": "Test"},
+            "target_roles": ["AI Engineer"],
+            "skills": {"prompt_engineering": ["Prompt Engineering"]},
+            "projects": [],
+        }
+        resume_path = tmp_path / "base_resume.json"
+        resume_path.write_text(json.dumps(resume), encoding="utf-8")
+
+        # Мокаем config чтобы не требовать реальный API-ключ
+        with patch("config.BASE_RESUME_PATH", resume_path), \
+             patch("config.OPENAI_API_KEY", "test-key"):
+            from modules.analyzer import VacancyAnalyzer
+            analyzer = VacancyAnalyzer()
+            # Мокаем LLM чтобы не делать реальных вызовов
+            analyzer.llm = MagicMock()
+            return analyzer
 
     def _make_vacancy(self, title: str, requirements: str = "") -> Vacancy:
         return Vacancy(id="1", title=title, company="Test", url="https://hh.ru/vacancy/1",
@@ -146,7 +183,29 @@ class TestKeywordScore:
         ]
         result = analyzer.pre_filter(vacancies, top_n=10)
         assert len(result) == 2  # только AI-вакансии
-        # Первая должна быть более релевантной или равной
         s0 = analyzer.keyword_score(result[0])
         s1 = analyzer.keyword_score(result[1])
         assert s0 >= s1
+
+
+class TestDedup:
+    def test_dedup_by_id(self, searcher):
+        """Дубли по ID удаляются."""
+        v1 = Vacancy(id="1", title="AI Engineer", company="Co", url="https://hh.ru/vacancy/1")
+        v2 = Vacancy(id="1", title="AI Engineer", company="Co", url="https://hh.ru/vacancy/1")
+        result = searcher._dedup([v1, v2])
+        assert len(result) == 1
+
+    def test_dedup_by_title_company(self, searcher):
+        """Дубли по title+company удаляются (разные источники)."""
+        v1 = Vacancy(id="1", title="AI Engineer", company="TechCorp", url="https://hh.ru/vacancy/1")
+        v2 = Vacancy(id="habr_999", title="AI Engineer", company="TechCorp", url="https://career.habr.com/vacancies/999")
+        result = searcher._dedup([v1, v2])
+        assert len(result) == 1
+
+    def test_different_vacancies_kept(self, searcher):
+        """Разные вакансии не удаляются."""
+        v1 = Vacancy(id="1", title="AI Engineer", company="Co1", url="https://hh.ru/vacancy/1")
+        v2 = Vacancy(id="2", title="Prompt Engineer", company="Co2", url="https://hh.ru/vacancy/2")
+        result = searcher._dedup([v1, v2])
+        assert len(result) == 2

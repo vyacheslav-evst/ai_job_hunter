@@ -19,28 +19,6 @@ os.environ.setdefault("PYTHONUTF8", "1")
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
-# ─── OpenRouter (устарело, оставлено для обратной совместимости) ──────────────
-OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL: str = "https://api.openai.com/v1"
-
-# ─── Google Gemini (устарело, оставлено для обратной совместимости) ───────────
-GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL: str = "gemini-2.0-flash"
-
-# ─── Telegram ─────────────────────────────────────────────────────────────────
-_tg_api_id_raw = os.getenv("TELEGRAM_API_ID", "0")
-TELEGRAM_API_ID: int = int(_tg_api_id_raw) if _tg_api_id_raw.isdigit() else 0
-TELEGRAM_API_HASH: str = os.getenv("TELEGRAM_API_HASH", "")
-TELEGRAM_PHONE: str = os.getenv("TELEGRAM_PHONE", "")
-
-# Каналы Telegram с вакансиями по AI/ML
-TELEGRAM_CHANNELS: list[str] = [
-    "aiwork",
-    "ai_jobs_ru",
-    "machinelearning_jobs",
-    "remotejobs_ru",
-]
-
 # ─── Настройки поиска hh.ru ───────────────────────────────────────────────────
 HH_BASE_URL: str = "https://api.hh.ru"
 
@@ -116,7 +94,7 @@ SEARCH_AREA: int = int(os.getenv("SEARCH_AREA", "113"))  # 113 = вся Росс
 SEARCH_ONLY_REMOTE: bool = True
 
 # ─── Настройки агента ─────────────────────────────────────────────────────────
-RELEVANCE_THRESHOLD: int = int(os.getenv("RELEVANCE_THRESHOLD", "60"))
+RELEVANCE_THRESHOLD: int = int(os.getenv("RELEVANCE_THRESHOLD", "45"))
 
 # ─── Пути к файлам ────────────────────────────────────────────────────────────
 MEMORY_DIR: Path = BASE_DIR / "memory"
@@ -124,9 +102,10 @@ OUTPUT_DIR: Path = BASE_DIR / "output"
 BASE_RESUME_PATH: Path = MEMORY_DIR / "base_resume.json"
 
 
-# ─── Прокси (для доступа к Google API из России) ─────────────────────────────
+# ─── Прокси (для доступа к OpenAI API из России) ─────────────────────────────
 HTTPS_PROXY: str = os.getenv("HTTPS_PROXY", "")
 HTTP_PROXY: str = os.getenv("HTTP_PROXY", "")
+
 
 def apply_proxy():
     """

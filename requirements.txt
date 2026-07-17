@@ -1,32 +1,31 @@
 # Переменные окружения
-python-dotenv==1.0.1
+python-dotenv>=1.0.0,<2.0.0
 
 # LLM (OpenAI + LangChain)
-langchain-openai>=0.1.0
-langchain-core>=0.2.0
-langgraph>=0.1.0
+langchain-openai>=0.1.0,<1.0.0
+langchain-core>=0.2.0,<1.0.0
+langgraph>=0.1.0,<1.0.0
 
 # HTTP (для парсинга hh.ru)
-requests==2.32.3
-urllib3
+requests>=2.31.0,<3.0.0
+urllib3>=2.0.0,<3.0.0
 
 # Парсинг hh.ru
-beautifulsoup4==4.12.3
-lxml==5.3.0
+beautifulsoup4>=4.12.0,<5.0.0
+lxml>=5.0.0,<6.0.0
 
 # Валидация данных
-pydantic==2.10.4
+pydantic>=2.5.0,<3.0.0
 
 # Генерация PDF
-fpdf2==2.8.1
+fpdf2>=2.8.0,<3.0.0
 
 # Веб-интерфейс
-streamlit>=1.35.0
+streamlit>=1.35.0,<2.0.0
 
 # REST API
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
+fastapi>=0.110.0,<1.0.0
+uvicorn[standard]>=0.29.0,<1.0.0
 
 # Работа с датами
-python-dateutil==2.9.0
-
+python-dateutil>=2.8.0,<3.0.0
